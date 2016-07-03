@@ -156,7 +156,6 @@ namespace Economy.scripts
         #region command list
         private bool ProcessMessage(string messageText)
         {
-            MyAPIGateway.Utilities.ShowMessage("debug", "hey we typed something");
             string[] split = messageText.Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             // nothing useful was entered.
             if (split.Length == 0)
