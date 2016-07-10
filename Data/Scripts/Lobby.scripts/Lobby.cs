@@ -34,6 +34,7 @@ namespace Economy.scripts
     //using IMyTerminalBlock = Sandbox.ModAPI.Ingame.IMyTerminalBlock;
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
+//[MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation | MyUpdateOrder.AfterSimulation | MyUpdateOrder.Simulation)]
     public class LobbyScript : MySessionComponentBase
     {
         int counter = 0;
@@ -102,6 +103,17 @@ namespace Economy.scripts
 
         }
 
+	/* public override void Simulate()
+	{
+    	if (instant && Target != "none")
+    		{
+        	string join = Target;
+        	Target = "none";
+        	
+        	MyAPIGateway.Multiplayer.JoinServer(join);
+    		}
+	}
+    */
         public override void UpdateAfterSimulation()
         {
             //heres our processing loop
@@ -120,16 +132,17 @@ namespace Economy.scripts
                     {
                         //MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = 
                         //if the option for insta teleport is enabled do so on entering a teleport zone.
-                        if (instant) { 
+                        if (instant && Target != "none")
+                        { 
                             MyAPIGateway.Utilities.ShowMessage("Departure point", Target); 
-                            //MyAPIGateway.Multiplayer.JoinServer(Target);   <-- This crashes ??
-                            //ProcessMessage("/depart"); <-- so does this !?
+                            //MyAPIGateway.Multiplayer.JoinServer(Target); //  <-- This crashes ??
+                            //if (ProcessMessage("/depart")) {  }  //<-- so does this !?
                         }
-                        else
-                        {
+                        //else
+                        //{
                             string reply = Zone + " [Type /depart to travel]";
                             MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
-                        }
+                        //}
 
                     }
                     else { Zone = "Scanning..."; Target = "none"; /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone; */ }
@@ -181,11 +194,11 @@ namespace Economy.scripts
                     // if there are no players closer than this, don't bother updating it.
                     var sphere = new BoundingSphereD(player.GetPosition(), 9); //destination lcds
                     var sphere2 = new BoundingSphereD(player.GetPosition(), 50); //popup notification lcds
-                    var list = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
-                    var list2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
+                    var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                    var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
                     string[] LCDTags = new string[] { "[destination]", "(destination)" };
                     string[] LCDTags2 = new string[] { "[station]", "(station)" };
-                    foreach (var block in list)
+                    foreach (var block in LCDlist)
                     {
                         var textPanel = block as IMyTextPanel;
                         if (textPanel != null
@@ -198,7 +211,7 @@ namespace Economy.scripts
                         }
 
                     }
-                    foreach (var block in list2)
+                    foreach (var block in LCDlist2)
                          {
                             var textPanel = block as IMyTextPanel;
                             if (textPanel != null
@@ -314,9 +327,9 @@ namespace Economy.scripts
             foreach (var player in players)
             {
                 var sphere = new BoundingSphereD(player.GetPosition(), 9);
-                var list = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
                 string[] LCDTags = new string[] { "[destination]", "(destination)" };
-                foreach (var block in list)
+                foreach (var block in LCDlist)
                 {
                     
                     var textPanel = block as IMyTextPanel;
