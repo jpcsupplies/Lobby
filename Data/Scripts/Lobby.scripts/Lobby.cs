@@ -38,6 +38,9 @@ namespace Economy.scripts
     {
         int counter = 0;
         bool initDone = false;
+        bool instant = false;
+        bool seenPopup = false; //have we already displayed a popup in this zone?
+        bool  noZone = true; //no zone in sight?
         public string Zone = "Scanning...";
         public string Target = "none";
 
@@ -46,7 +49,8 @@ namespace Economy.scripts
             //lets see if i can adapt midspaces version (hope you dont mind!)
 
             //are we offline in which case running server side IS client
-            if (MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
+            //ok in theory we dont need this anymore
+            /* if (MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
             {
                 //DebugOn = MyAPIGateway.Session.Player.IsExperimentalCreator();
                 if (MyAPIGateway.Session.OnlineMode.Equals(MyOnlineModeEnum.OFFLINE)) // pretend single player instance is also server.
@@ -57,7 +61,7 @@ namespace Economy.scripts
                     return false;
                     //apparently im something else client related?
                 return false; //MyAPIGateway.Multiplayer.MultiplayerActive
-            }
+            }  */
 
             // Am I a Dedicated Server?.
             if (MyAPIGateway.Utilities != null && MyAPIGateway.Multiplayer != null
@@ -74,18 +78,20 @@ namespace Economy.scripts
             MyAPIGateway.Utilities.MessageEntered += gotMessage;
             initDone = true;
            
-            //ok lets warm up the hud.. unless of course we are a server.. which would be stupid
+
             if (!AmIaDedicated())
             {
-                MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Clear();
+                //ok lets warm up the hud.. unless of course we are a server.. which would be stupid
+                //no longer using hud to prevent conflicts with other mods
+               /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Clear();
                 MyAPIGateway.Utilities.GetObjectiveLine().Title = "Initialising";
                 MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Add("Scanning..");
-                MyAPIGateway.Utilities.GetObjectiveLine().Show();
+                MyAPIGateway.Utilities.GetObjectiveLine().Show(); */
             
                 //Lets let the user know whats up.
-                 MyAPIGateway.Utilities.ShowMessage("Lobby", "loaded!");
-                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Type '/Lhelp' for more informations about available commands\r\ntype /jump to go to current server");
-                 MyAPIGateway.Utilities.ShowMissionScreen("Lobby", "", "Warning", "Welcome to gateway Station.\r\n\r\nPlease enter a shuttle and when indicated on hud..\r\nType /depart to travel to its sector.", null, "Close");
+                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector is equipped with a gateway station!");
+                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Type '/Lhelp' for more informations about available commands.");
+                 //now user configured - MyAPIGateway.Utilities.ShowMissionScreen("Lobby", "", "Warning", "Welcome to gateway Station.\r\n\r\nPlease enter a shuttle and when indicated on hud..\r\nType /depart to travel to its sector.", null, "Close");
             }
         }
 
@@ -107,19 +113,29 @@ namespace Economy.scripts
             if (!AmIaDedicated() )
             {
                 //my dirty little timer loop - fires roughly each 1.5 seconds
-                if (counter >= 100)
+                if (counter >= 500)
                 {
                     counter = 0;
                     if (UpdateLobby())
                     {
-                        MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone + " [Type /depart to travel here]";
-                        // uncomment this line if you want players to travel immediately on entering zone
-                        //MyAPIGateway.Multiplayer.JoinServer(Target);
+                        //MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = 
+                        //if the option for insta teleport is enabled do so on entering a teleport zone.
+                        if (instant) { 
+                            MyAPIGateway.Utilities.ShowMessage("Departure point", Target); 
+                            //MyAPIGateway.Multiplayer.JoinServer(Target);   <-- This crashes ??
+                            //ProcessMessage("/depart"); <-- so does this !?
+                        }
+                        else
+                        {
+                            string reply = Zone + " [Type /depart to travel]";
+                            MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
+                        }
+
                     }
-                    else { Zone = "Scanning..."; Target = "none"; MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone; }
+                    else { Zone = "Scanning..."; Target = "none"; /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone; */ }
                 }
                 counter++;
-            } 
+            }
             base.UpdateAfterSimulation();
         }
 
@@ -135,10 +151,11 @@ namespace Economy.scripts
             //if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
              if ( MyAPIGateway.Session.Player.Controller.ControlledEntity != null)
              {
-                 Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
+                 //hud code, disabled to prevent conflicts with other mods kept for reference
+                 /* Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
                  double X = position.X; double Y = position.Y; double Z = position.Z;
                  string whereami = string.Format("[ X: {0:F0} Y: {1:F0} Z: {2:F0} ]", X, Y, Z);
-                 MyAPIGateway.Utilities.GetObjectiveLine().Title = whereami;
+                 MyAPIGateway.Utilities.GetObjectiveLine().Title = whereami; */
 
                  //hard coded target list cause I suck at server side datafiles..
                  /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
@@ -156,14 +173,18 @@ namespace Economy.scripts
                 var players = new List<IMyPlayer>();
                 MyAPIGateway.Players.GetPlayers(players, p => p != null);
                 var updatelist = new HashSet<IMyTextPanel>();
+                var updatelist2 = new HashSet<IMyTextPanel>();
 
                 foreach (var player in players)
                 {
                     // Establish a visual range of the LCD.
                     // if there are no players closer than this, don't bother updating it.
-                    var sphere = new BoundingSphereD(player.GetPosition(), 9);
+                    var sphere = new BoundingSphereD(player.GetPosition(), 9); //destination lcds
+                    var sphere2 = new BoundingSphereD(player.GetPosition(), 50); //popup notification lcds
                     var list = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                    var list2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
                     string[] LCDTags = new string[] { "[destination]", "(destination)" };
+                    string[] LCDTags2 = new string[] { "[station]", "(station)" };
                     foreach (var block in list)
                     {
                         var textPanel = block as IMyTextPanel;
@@ -171,18 +192,63 @@ namespace Economy.scripts
                             && textPanel.IsFunctional
                             && textPanel.IsWorking
                             && LCDTags.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                        {
+                        {   
+                            //noZone = false;
                             updatelist.Add((IMyTextPanel)block);
                         }
-                    }
-                }
 
-                foreach (var textPanel in updatelist)
-                { 
-                    var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                 
-                    if (checkArray.Length >= 2) //if its Not at least 2 its invalid.
+                    }
+                    foreach (var block in list2)
+                         {
+                            var textPanel = block as IMyTextPanel;
+                            if (textPanel != null
+                            && textPanel.IsFunctional
+                            && textPanel.IsWorking
+                            && LCDTags2.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                            {
+                                noZone = false;
+                                updatelist2.Add((IMyTextPanel)block);
+                            }
+                        }
+                }
+              //special option lcds
+                    foreach (var textPanel in updatelist2)
                     {
+                        string popup = "";
+                        var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        popup = textPanel.GetPublicText();
+                        if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
+                        {
+                            int title = 0;
+                            foreach (var str in checkArray)
+                            {
+
+                                if (title <= checkArray.Length)
+                                {
+                                    if (!seenPopup && checkArray[title].Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                                    {
+                                        MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", (popup + " "), null, "Close");
+                                        seenPopup = true;
+                                    }
+                                    if (checkArray[title].Equals("instant", StringComparison.InvariantCultureIgnoreCase))
+                                    {
+                                        instant = true;
+                                        
+                                    }
+                                    //any other lcd keyword checks go here?
+
+                                }
+                                title++;
+                            } 
+                        }
+                        else { break; }
+                    }
+  
+                 foreach (var textPanel in updatelist)
+                 { 
+                    var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                     if (checkArray.Length >= 2) //if its Not at least 2 its invalid.
+                     {
                         int title = 0; Zone = "";
                         foreach (var str in checkArray) {
                                 //string reply = "i got " + checkArray.Length + " " + checkArray[0] + " " + checkArray[1];
@@ -194,7 +260,11 @@ namespace Economy.scripts
                     else { return false; }           
                 }
              }
-            
+            //no zone is used to detect if we have left the range of any useful lcds
+            //if so reset the option falgs to reduce processing and to allow more than one gateway station using 
+            //different options
+             if (noZone) { seenPopup = false; instant = false; }
+             else { noZone = true; }
             return false;
             //we fell through a hole nothing to see here
         }
@@ -236,7 +306,11 @@ namespace Economy.scripts
             var players = new List<IMyPlayer>();
             MyAPIGateway.Players.GetPlayers(players, p => p != null);
             var updatelist = new HashSet<IMyTextPanel>();
-
+            string reply2 = "";
+            if (seenPopup) { reply2 = "Seen popup: true"; } else { reply2 = "seen popup: false"; }
+            if (noZone) { reply2 += " no zone: true"; } else { reply2 += " no zone: false"; }
+            if (instant) { reply2 += " intant travel: true"; } else { reply2 += " instant travel: false"; }
+            MyAPIGateway.Utilities.ShowMessage("Lobby", reply2);
             foreach (var player in players)
             {
                 var sphere = new BoundingSphereD(player.GetPosition(), 9);
