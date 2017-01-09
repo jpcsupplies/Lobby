@@ -39,7 +39,7 @@ namespace Economy.scripts
     {
         int counter = 0;
         bool initDone = false;
-        bool instant = false;
+        bool instant = false;  //should it auto-depart or wait of the depart command (only works with command causes crash otherwise)
         bool seenPopup = false; //have we already displayed a popup in this zone?
         bool  noZone = true; //no zone in sight?
         public string Zone = "Scanning...";
@@ -183,36 +183,36 @@ namespace Economy.scripts
                 //look for an lcd named [destination] then grab the public title and extract a server address and caption
                 //display the caption in hud, and set the server address to connect to
 
-                var players = new List<IMyPlayer>();
-                MyAPIGateway.Players.GetPlayers(players, p => p != null);
+                //var players = new List<IMyPlayer>();
+               // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
                 var updatelist = new HashSet<IMyTextPanel>();
                 var updatelist2 = new HashSet<IMyTextPanel>();
 
-                foreach (var player in players)
-                {
-                    // Establish a visual range of the LCD.
-                    // if there are no players closer than this, don't bother updating it.
-                    var sphere = new BoundingSphereD(player.GetPosition(), 9); //destination lcds
-                    var sphere2 = new BoundingSphereD(player.GetPosition(), 50); //popup notification lcds
-                    var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
-                    var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
-                    string[] LCDTags = new string[] { "[destination]", "(destination)" };
-                    string[] LCDTags2 = new string[] { "[station]", "(station)" };
-                    foreach (var block in LCDlist)
+                var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 9); //destination lcds
+                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                string[] LCDTags = new string[] { "[destination]", "(destination)" };
+
+                var sphere2 = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 50); //popup notification lcds
+                var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
+                string[] LCDTags2 = new string[] { "[station]", "(station)" };
+
+
+                foreach (var block in LCDlist)
                     {
-                        var textPanel = block as IMyTextPanel;
-                        if (textPanel != null
-                            && textPanel.IsFunctional
-                            && textPanel.IsWorking
-                            && LCDTags.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                        {   
-                            //noZone = false;
-                            updatelist.Add((IMyTextPanel)block);
-                        }
+                            var textPanel = block as IMyTextPanel;
+                            if (textPanel != null
+                                && textPanel.IsFunctional
+                                && textPanel.IsWorking
+                                && LCDTags.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                            {
+                                //noZone = false;
+                                updatelist.Add((IMyTextPanel)block);
+                            }
 
                     }
-                    foreach (var block in LCDlist2)
-                         {
+
+                foreach (var block in LCDlist2)
+                    {
                             var textPanel = block as IMyTextPanel;
                             if (textPanel != null
                             && textPanel.IsFunctional
@@ -222,14 +222,15 @@ namespace Economy.scripts
                                 noZone = false;
                                 updatelist2.Add((IMyTextPanel)block);
                             }
-                        }
-                }
+                     }
+
               //special option lcds
                     foreach (var textPanel in updatelist2)
                     {
                         string popup = "";
-                        var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        popup = textPanel.GetPublicText();
+                     //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //private title removed by keen
+                    var checkArray = (textPanel.GetPublicTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    popup = textPanel.GetPublicText();
                         if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
                         {
                             int title = 0;
@@ -259,8 +260,9 @@ namespace Economy.scripts
   
                  foreach (var textPanel in updatelist)
                  { 
-                    var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                     if (checkArray.Length >= 2) //if its Not at least 2 its invalid.
+                    //var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    var checkArray = (textPanel.GetPublicTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //fix for removal of private text by keen
+                    if (checkArray.Length >= 2) //if its Not at least 2 its invalid.
                      {
                         int title = 0; Zone = "";
                         foreach (var str in checkArray) {
@@ -268,7 +270,7 @@ namespace Economy.scripts
                                 //MyAPIGateway.Utilities.ShowMessage("TEST", reply);
                                 if (title != 0 && title <= checkArray.Length) { Zone += " " + checkArray[title]; } 
                                 title++;
-                        } Target = checkArray[0]; return true; //this should probably check if ip is valid format
+                        } Target = checkArray[0]; return true; //this should probably check if ip is valid format but other than exiting current map nothing bad seems to occur if its invalid
                     }
                     else { return false; }           
                 }
@@ -324,10 +326,24 @@ namespace Economy.scripts
             if (noZone) { reply2 += " no zone: true"; } else { reply2 += " no zone: false"; }
             if (instant) { reply2 += " intant travel: true"; } else { reply2 += " instant travel: false"; }
             MyAPIGateway.Utilities.ShowMessage("Lobby", reply2);
+
+                /*
+                 if (MyAPIGateway.Session.Player != null)
+                {
+                    string MySenderSteamId = MyAPIGateway.Session.Player.SteamUserId;
+                    string MySenderDisplayName = MyAPIGateway.Session.Player.DisplayName;
+                }
+                */
+
+                int playerno=0;
+                string namez = "";
             foreach (var player in players)
             {
+                    namez += players[playerno].SteamUserId+" - "+ MyAPIGateway.Session.Player.SteamUserId+"\r\n";
+                    playerno++;
                 var sphere = new BoundingSphereD(player.GetPosition(), 9);
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                
                 string[] LCDTags = new string[] { "[destination]", "(destination)" };
                 foreach (var block in LCDlist)
                 {
@@ -343,10 +359,13 @@ namespace Economy.scripts
                 }
             }
 
-             foreach (var textPanel in updatelist)
+                MyAPIGateway.Utilities.ShowMissionScreen("names", "", "Warning", namez, null, "Close");
+
+                foreach (var textPanel in updatelist)
             { 
-                 var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                     string reply="";
+              //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    var checkArray = (textPanel.GetPublicTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    string reply="";
                      if (checkArray.Length >= 2) {
                          int title = 0; Zone = "";
                          foreach (var str in checkArray)
