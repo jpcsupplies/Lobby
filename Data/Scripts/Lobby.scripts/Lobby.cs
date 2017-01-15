@@ -29,12 +29,8 @@ namespace Economy.scripts
     using VRage.ModAPI;
     using VRage.ObjectBuilders;
     using VRageMath;
-    //using IMyCargoContainer = Sandbox.ModAPI.Ingame.IMyCargoContainer;
-   // using IMyOxygenTank = Sandbox.ModAPI.Ingame.IMyOxygenTank;
-    //using IMyTerminalBlock = Sandbox.ModAPI.Ingame.IMyTerminalBlock;
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
-//[MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation | MyUpdateOrder.AfterSimulation | MyUpdateOrder.Simulation)]
     public class LobbyScript : MySessionComponentBase
     {
         int counter = 0;
@@ -46,23 +42,7 @@ namespace Economy.scripts
         public string Target = "none";
 
         bool AmIaDedicated()
-        { //apparently keen didn't invent one of these already?
-            //lets see if i can adapt midspaces version (hope you dont mind!)
-
-            //are we offline in which case running server side IS client
-            //ok in theory we dont need this anymore
-            /* if (MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
-            {
-                //DebugOn = MyAPIGateway.Session.Player.IsExperimentalCreator();
-                if (MyAPIGateway.Session.OnlineMode.Equals(MyOnlineModeEnum.OFFLINE)) // pretend single player instance is also server.
-                    //i am offline!
-                    return false;
-                if (!MyAPIGateway.Session.OnlineMode.Equals(MyOnlineModeEnum.OFFLINE) && MyAPIGateway.Multiplayer.IsServer && !MyAPIGateway.Utilities.IsDedicated)
-                    //i am some half server state! probably local hosted
-                    return false;
-                    //apparently im something else client related?
-                return false; //MyAPIGateway.Multiplayer.MultiplayerActive
-            }  */
+        { 
 
             // Am I a Dedicated Server?.
             if (MyAPIGateway.Utilities != null && MyAPIGateway.Multiplayer != null
@@ -124,8 +104,8 @@ namespace Economy.scripts
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated() )
             {
-                //my dirty little timer loop - fires roughly each 1.5 seconds
-                if (counter >= 500)
+                //my dirty little timer loop - fires roughly each 2 seconds
+                if (counter >= 900)
                 {
                     counter = 0;
                     if (UpdateLobby())
@@ -276,7 +256,7 @@ namespace Economy.scripts
                 }
              }
             //no zone is used to detect if we have left the range of any useful lcds
-            //if so reset the option falgs to reduce processing and to allow more than one gateway station using 
+            //if so reset the option flags to reduce processing and to allow more than one gateway station using 
             //different options
              if (noZone) { seenPopup = false; instant = false; }
              else { noZone = true; }
