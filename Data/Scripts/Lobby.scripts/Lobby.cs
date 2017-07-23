@@ -19,6 +19,7 @@
 
 namespace Economy.scripts
 {
+    using EconomyAPI;
     using System;
     using System.Collections.Generic;
     using System.Globalization;
@@ -118,6 +119,7 @@ namespace Economy.scripts
         protected override void UnloadData()
         {
             MyAPIGateway.Utilities.MessageEntered -= gotMessage;
+            econoManagement.Unsubscribe();
             base.UnloadData();
 
         }
