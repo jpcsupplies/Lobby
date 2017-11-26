@@ -46,7 +46,6 @@ namespace Economy.scripts
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
     {
-        readonly EconomyAPI.EconManagement econoManagement = new EconManagement();
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
         bool instant = false;  //should it auto-depart or wait of the depart command (disabled at the moment)
@@ -127,11 +126,8 @@ namespace Economy.scripts
         /// </summary>
         public override void UpdateAfterSimulation()
         {
-
-            econoManagement.Subscribe(55055);
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 init();
-            
 
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated() )
@@ -493,7 +489,7 @@ namespace Economy.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                string versionreply = "Gateway 3.5 " ;
+                string versionreply = "3.5 " ;
                 MyAPIGateway.Utilities.ShowMessage("VER", versionreply);
                 return true;
             }
