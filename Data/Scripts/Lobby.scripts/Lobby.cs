@@ -19,7 +19,7 @@
 
 namespace Economy.scripts
 {
-    using EconomyAPI;
+    
     using System;
     using System.Collections.Generic;
     using System.Globalization;
@@ -43,11 +43,14 @@ namespace Economy.scripts
     using VRage.ModAPI;
     using VRage.ObjectBuilders;
     using VRageMath;
+    using EconomyAPI;   //economy api stuff
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
     {
-        readonly EconomyAPI.EconManagement econoManagement = new EconManagement();
+  
+
+
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
         bool instant = false;  //should it auto-depart or wait of the depart command (disabled at the moment)
@@ -69,6 +72,35 @@ namespace Economy.scripts
         public string GND = "Galactic North"; // +Y
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
+
+      #region economyapi
+        readonly EconomyAPI.EconManagement econoManagement = new EconManagement(); 
+        private static long _lastTransaction; 
+        public static long GetNewTransaction() { return _lastTransaction++; } 
+        public static long Channel = 55055;
+        public bool pending = false;
+ 
+
+        /// <summary>
+        ///     Takes an amount and a reason and tries to bill economy
+        /// </summary>
+        public  void Billing(decimal cost, string reason, string action="bill")
+        {
+            if (action == "bill")
+            { if (pending != true)
+                {
+                    EconomyAPI.EconPayUser.SendMessage(MyAPIGateway.Session.Player.SteamUserId, 1234, cost, reason, Channel, GetNewTransaction());
+                    pending = true;
+                } else MyAPIGateway.Utilities.ShowMessage("Economy", "A transaction is already pending try again later."); 
+            } 
+            if (action == "check" && pending)
+            {
+                // check for the _lastTransaction in transaction log  do stuff if its there do nothing if its not
+                //if its there pending=false else do nothing
+                //ideally something pre-baked into economyapi should be available to call to do this bit
+            }
+        }
+       #endregion economyapi
 
         /// <summary>
         ///     Quick check to see if the script is trying to run server side.
@@ -119,7 +151,7 @@ namespace Economy.scripts
         protected override void UnloadData()
         {
             MyAPIGateway.Utilities.MessageEntered -= gotMessage;
-            econoManagement.Unsubscribe();
+            econoManagement.Unsubscribe();  //economy stuff
             base.UnloadData();
 
         }
@@ -130,7 +162,8 @@ namespace Economy.scripts
         public override void UpdateAfterSimulation()
         {
 
-            econoManagement.Subscribe(55055);
+            econoManagement.Subscribe(Channel); //economy stuff
+
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 init();
             
@@ -142,6 +175,9 @@ namespace Economy.scripts
                 if (counter >= 900)
                 {
                     counter = 0;
+
+                    Billing(0m, "", "check"); //check if the last economyapi  transaction has completed
+
                     if (UpdateLobby())
                     {
                          //if the option for insta teleport is enabled do so on entering a teleport zone.
@@ -511,6 +547,7 @@ namespace Economy.scripts
                 //if false show reply you cant afford to call for a taxi pickup
                 //if true request economy api deducts the 50 credits and tell player once it is sucessful
 
+                Billing(50m, "Call Taxi");
 
                 string reply = "nothing to do yet";
                 MyAPIGateway.Utilities.ShowMessage("TAXI", reply);
