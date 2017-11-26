@@ -6,14 +6,17 @@ Developed by PhoenixX
 
 ======================
 
-To use:
 
+There are not many keyboard commands. This mod mostly makes use of LCDs.
+
+Keyboard commands:
 Enter a command into the in game chat box, and it will perform an action.
 
 Enter "/Lhelp" for a list of current commands.
 Enter "/Lhelp #" for more information on that particular command.
 
 ======================
+
 
 ==================
 How to use:
@@ -34,12 +37,19 @@ Whenever players come within 9 or so blocks (about the interior size of the defa
 
 -
 
-****************************
-* Interstellar Map Boundry *
-****************************
+******************************
+* Interstellar Space Boundry *
+******************************
 You can Set World "boundries" so that if a player flies off the edge of the allowed world - they enter "interstellar space" (the empty void between "sectors" (servers)) and can travel to whatever "sector"  (server) is assigned that direction.
 
-If you imagine your entire game world as a large cube - facing from behind -   The left wall of the "cube" represents "Galactic West"   The Right wall is "Galactic East" the far wall is "Galactic North" the near wall is "Galactic South"  the top wall is "Galactic up" and the bottom "Galactic Down"
+If you imagine your entire game world as a large cube - facing from behind -   
+The left wall of the "cube" represents "Galactic West"   
+The Right wall is "Galactic East" 
+The far wall is "Galactic North" 
+The near wall is "Galactic South"
+The top wall is "Galactic up" 
+The bottom "Galactic Down"
+
 This allows each server to be a "sector" of a larger universe with 6 possible exits depending on your chosen direction.  
 
 This is really easy to visualise on a role playing website map by represending each individual server as a cube.  Line them all up together to form a larger cube.   
@@ -50,9 +60,11 @@ Eg if you had 9 servers representing 9 locations in a "Galaxy"  the map would lo
 
 [Server 7] [Server 8] [Server 9]
 
+On server 5, Players flying out the right size of your map would be sent to server 6.  etc.
 
 To use this feature:
-Create an LCD on a large station/ship block.  
+Create an LCD, eg - on a large station/ship block.  It shouldn't need to be powered so you could simply place a single block underground on a planet and place an LCD on each side and set that represents each exit direction. Just keep in mind cleanup tools may delete unpowered grids.
+
 NAME the LCD the desired direction of interstellar space.
 Eg.  [GW] or [GE] or [GN] or [GS] or [GU] or [GD] 
 
@@ -65,6 +77,9 @@ So for example if you wish players who enter the "Galactic West" Interstellar sp
 
 LCD NAME: [GW]
 LCD Public Title: 221.121.149.13:28790 Lawless Void Sector    
+
+You can have more than one direction go to the same sector by simply adding more directions with a space between.  
+Eg:  [GW] [GN] [GS]
 
 -
 
@@ -86,5 +101,5 @@ You do NOT requre a destination LCD, you can use these popups simply as an autom
 *******
 *Notes*
 *******
-To increase compatability with non-english keyboards you can use [ ]  or ( ) in your LCD Tags.
+To increase compatability with non-english keyboards you can use [ ]  or ( ) in your LCD Tags, and they are case insensitive.
 
