@@ -14,7 +14,7 @@
  *  a way to notify owners of a visitor at their station popup (might be fun)
  *  Economy(504209260) API: permission to dock - configurable public/private connectors, guns off/on etc for a fee (need Economy api, may be interesting)
  *  Economy(504209260) API: faction territory, entry taxes, GPS indicators etc (Need Economy API)
- *  Economy(504209260) API: /taxi  economy api test command - charges 50 credits to set a gps of their current location to all allies
+ *  
 */
 
 namespace Economy.scripts
@@ -494,23 +494,6 @@ namespace Economy.scripts
                 return true;
             }
             #endregion ver
-
-            #region taxi
-            //taxi economy api test  used to request a pickup sos etc from allies
-
-            if (split[0].Equals("/taxi", StringComparison.InvariantCultureIgnoreCase))
-            {
-                //first we need to check if there is anyone online who can help them
-                //if true we need to check with economy api to see if they can afford the 50 credits
-                //if false show reply you cant afford to call for a taxi pickup
-                //if true request economy api deducts the 50 credits and tell player once it is sucessful
-
-
-                string reply = "nothing to do yet";
-                MyAPIGateway.Utilities.ShowMessage("TAXI", reply);
-                return true;
-            }
-            #endregion taxi
 
             #region test 
             //This tests scan results and displays what the mod see's
