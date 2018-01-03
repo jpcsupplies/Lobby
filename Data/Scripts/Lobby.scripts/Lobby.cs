@@ -56,12 +56,12 @@ namespace Economy.scripts
         public string Zone = "Scanning...";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
 
-        public string GW = "0.0.0.0:27270"; public double GWP = -1000000; //X
-        public string GE = "0.0.0.0:27270"; public double GEP = 1000000; //X
-        public string GS = "0.0.0.0:27270"; public double GSP = -1000000; //Y
-        public string GN = "0.0.0.0:27270"; public double GNP = 1000000; //Y
-        public string GD = "0.0.0.0:27270"; public double GDP = -1000000; //Z
-        public string GU = "0.0.0.0:27270"; public double GUP = 1000000; //Z
+        public string GW = "0.0.0.0:27270"; public double GWP = -10000000; //X
+        public string GE = "0.0.0.0:27270"; public double GEP = 10000000; //X
+        public string GS = "0.0.0.0:27270"; public double GSP = -10000000; //Y
+        public string GN = "0.0.0.0:27270"; public double GNP = 10000000; //Y
+        public string GD = "0.0.0.0:27270"; public double GDP = -10000000; //Z
+        public string GU = "0.0.0.0:27270"; public double GUP = 10000000; //Z
 
         public string GWD = "Galactic West";  // -X
         public string GED = "Galactic East";  // +X
@@ -138,6 +138,7 @@ namespace Economy.scripts
                 if (counter >= 900)
                 {
                     counter = 0;
+                    //if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
                     if (UpdateLobby())
                     {
                          //if the option for insta teleport is enabled do so on entering a teleport zone.
@@ -505,16 +506,17 @@ namespace Economy.scripts
 
             #region test 
             //This tests scan results and displays what the mod see's
-            if (split[0].Equals("/test", StringComparison.InvariantCultureIgnoreCase))
+            if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase))
             {
-            var players = new List<IMyPlayer>();
-            MyAPIGateway.Players.GetPlayers(players, p => p != null);
-            var updatelist = new HashSet<IMyTextPanel>();
-            string reply2 = "";
-            if (seenPopup) { reply2 = "Seen popup: true"; } else { reply2 = "seen popup: false"; }
-            if (noZone) { reply2 += " no zone: true"; } else { reply2 += " no zone: false"; }
-            if (instant) { reply2 += " instant travel: true"; } else { reply2 += " instant travel: false"; }
-            MyAPIGateway.Utilities.ShowMessage("Lobby", reply2);
+                if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; } else { MyAPIGateway.Utilities.ShowMessage("Note:", "No Interstellar Space Detected."); }
+                var players = new List<IMyPlayer>();
+                MyAPIGateway.Players.GetPlayers(players, p => p != null);
+                var updatelist = new HashSet<IMyTextPanel>();
+                string reply2 = "";
+                if (seenPopup) { reply2 = "Seen popup: true"; } else { reply2 = "seen popup: false"; }
+                if (noZone) { reply2 += " no zone: true"; } else { reply2 += " no zone: false"; }
+                if (instant) { reply2 += " instant travel: true"; } else { reply2 += " instant travel: false"; }
+                MyAPIGateway.Utilities.ShowMessage("Lobby", reply2);
 
                 /*
                  if (MyAPIGateway.Session.Player != null)
@@ -526,8 +528,8 @@ namespace Economy.scripts
 
                 int playerno=0;
                 string namez = "";
-            foreach (var player in players)
-            {
+                foreach (var player in players)
+                {
                     namez += players[playerno].SteamUserId+" - "+ MyAPIGateway.Session.Player.SteamUserId+"\r\n";
                     playerno++;
                 var sphere = new BoundingSphereD(player.GetPosition(), 9);
@@ -546,7 +548,7 @@ namespace Economy.scripts
                         updatelist.Add((IMyTextPanel)block);
                     }
                 }
-            }
+                }
 
                 MyAPIGateway.Utilities.ShowMissionScreen("names", "", "Warning", namez, null, "Close");
 
@@ -576,7 +578,7 @@ namespace Economy.scripts
             {
                 if (split.Length <= 1)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Commands: Lhelp, depart, ver, test");
+                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Commands: Lhelp, depart, ver, ltest");
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Features: popup, destination, interstellar");
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Try '/Lhelp command/feature' for more informations about specific items.");
                     return true;
@@ -600,7 +602,7 @@ namespace Economy.scripts
                             return true;
                         case "test":
                             helpreply = "Simply shows what the mod scanner is picking up\r\n";
-                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /test");
+                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ltest");
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "test command", helpreply, null, "Close");
                             return true;
                         case "popup":
