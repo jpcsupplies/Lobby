@@ -138,7 +138,7 @@ namespace Economy.scripts
                 if (counter >= 900)
                 {
                     counter = 0;
-                    //if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
+                    if (setexits()) { quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
                     if (UpdateLobby())
                     {
                          //if the option for insta teleport is enabled do so on entering a teleport zone.
