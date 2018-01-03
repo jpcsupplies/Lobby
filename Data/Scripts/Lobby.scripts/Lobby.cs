@@ -224,7 +224,11 @@ namespace Economy.scripts
             {
                 //is the data valid
                 //bool LCDValid=false;
+                double rangetocheck = 0; 
+                // xVel=xVel * -1; //reverse  direction
 
+                //did they put a distance to check for this exit
+                if (!double.TryParse(textPanel.GetPublicText(),out rangetocheck)) rangetocheck = 1000000; //default distance 1000km if not specified in LCD text
                 // text from lcd title in an array eg [GE] [GS]
                 var titleArray = (textPanel.CustomName).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); 
                 
@@ -264,40 +268,40 @@ namespace Economy.scripts
                             switch (ExitName.ToUpper())
                             {
                                 case "[GW]":
-                                    GW = ip; if (description !="") GWD = description; //GWP = -1000000;
+                                    GW = ip; if (description !="") GWD = description;  GWP = rangetocheck * -1;
                                     break;
                                 case "[GE]":
-                                    GE = ip; if (description != "") GED = description;  //GEP = 1000000;
+                                    GE = ip; if (description != "") GED = description;  GEP = rangetocheck;
                                     break;
                                 case "[GN]":
-                                    GN = ip; if (description != "") GND = description; //GNP = 1000000;
+                                    GN = ip; if (description != "") GND = description; GNP = rangetocheck;
                                     break;
                                 case "[GS]":
-                                    GS = ip; if (description != "") GSD = description;  //GSP = -1000000;
+                                    GS = ip; if (description != "") GSD = description;  GSP = rangetocheck * -1; 
                                     break;
                                 case "[GU]":
-                                    GU = ip; if (description != "") GUD = description; //GUP = 1000000;
+                                    GU = ip; if (description != "") GUD = description; GUP = rangetocheck;
                                     break;
                                 case "[GD]":
-                                    GD = ip; if (description != "") GDD = description; //GDP = -1000000;
+                                    GD = ip; if (description != "") GDD = description; GDP = rangetocheck * -1;
                                     break;
                                 case "(GW)":
-                                    GW = ip; if (description != "") GWD = description; //GWP = -1000000;
+                                    GW = ip; if (description != "") GWD = description; GWP = rangetocheck * -1;
                                     break;
                                 case "(GE)":
-                                    GE = ip; if (description != "") GED = description; //GEP = 1000000;
+                                    GE = ip; if (description != "") GED = description; GEP = rangetocheck;
                                     break;
                                 case "(GN)":
-                                    GN = ip; if (description != "") GND = description; //GNP = 1000000;
+                                    GN = ip; if (description != "") GND = description; GNP = rangetocheck;
                                     break;
                                 case "(GS)":
-                                    GS = ip; if (description != "") GSD = description; //GSP = -1000000;
+                                    GS = ip; if (description != "") GSD = description; GSP = rangetocheck * -1;
                                     break;
                                 case "(GU)":
-                                    GU = ip; if (description != "") GUD = description; //GUP = 1000000;
+                                    GU = ip; if (description != "") GUD = description; GUP = rangetocheck;
                                     break;
                                 case "(GD)":
-                                    GD = ip; if (description != "") GDD = description; //GDP = -1000000;
+                                    GD = ip; if (description != "") GDD = description; GDP = rangetocheck * -1;
                                     break;
                                 default:
                                     break;
