@@ -112,7 +112,7 @@ namespace Lobby.scripts
                  MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
                 //MyAPIGateway.Utilities.ShowMessage("Lobby", "Type '/Lhelp' for more informations about available commands.");
                 //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
-                if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; } else { MyAPIGateway.Utilities.ShowMessage("Note:", "No Interstellar Space Detected."); }
+                if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; } else { MyAPIGateway.Utilities.ShowMessage("Note", "No Interstellar Space Detected."); }
                  //now user configured - MyAPIGateway.Utilities.ShowMissionScreen("Lobby", "", "Warning", "Welcome to gateway Station.\r\n\r\nPlease enter a shuttle and when indicated on hud..\r\nType /depart to travel to its sector.", null, "Close");
             }
         }
@@ -497,21 +497,31 @@ namespace Lobby.scripts
             //we fell through a hole nothing to see here
         }
 
-      
+
         /// <summary>
         ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
+        ///     Developed with assistance of Digi
         /// </summary>
-        public static void PlaySound(string soundName, float volume = 1.0f)   //Play sound to local player only
+        void PlaySound(MySoundPair soundPair, float volume = 1f)
         {
             var controlled = MyAPIGateway.Session?.ControlledObject?.Entity;
 
             if (controlled == null)
                 return; // don't continue if session is not ready or player does not control anything.
 
-            var emitter = new MyEntity3DSoundEmitter((MyEntity)controlled);
+            if (emitter == null)
+                emitter = new MyEntity3DSoundEmitter((MyEntity)controlled);
+            else
+                emitter.Entity = (MyEntity)controlled;
+
             emitter.CustomVolume = volume;
-            emitter.PlaySingleSound(new MySoundPair(soundName));
-            emitter.Cleanup();
+            emitter.PlaySingleSound(soundPair);
+            //emitter.Cleanup();
+        }
+
+        void StopLastPlayedSound()
+        {
+            emitter?.StopSound(false);
         }
 
 
@@ -539,7 +549,7 @@ namespace Lobby.scripts
                     //need a 25 second delay here.
                     MyAPIGateway.Utilities.ShowMessage("Travel ", "Preparing to depart - /depart again to abort");
                     startTime = DateTime.UtcNow;
-                    PlaySound("IJump", 2f);
+                    PlaySound(jumpSoundPair, 2f);
                     jumping = true;
                     lockedtarget = Target;
                     //have to flip a flag to depart so we trigger a sim timer and counter then launch joinserver
@@ -547,7 +557,7 @@ namespace Lobby.scripts
                     //JoinServer(Target);
 
                 }
-                else if (jumping) { MyAPIGateway.Utilities.ShowMessage("Travel ", "Aborting Travel"); jumping = false; chargetime = 20; }
+                else if (jumping) { MyAPIGateway.Utilities.ShowMessage("Travel ", "Aborting Travel"); jumping = false; chargetime = 20; StopLastPlayedSound(); }
                 return true;
             }
             #endregion jump
