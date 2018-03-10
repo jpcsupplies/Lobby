@@ -13,6 +13,7 @@
       <Waves>
         <Wave Type="D2">
           <Start>Audio\Interstellar_Jump.xwm</Start>
+	  <End>ARC\SHIP\ArcShipJumpDriveRechargeLoop3d.wav</End>
         </Wave>
       </Waves>
     </Sound>
