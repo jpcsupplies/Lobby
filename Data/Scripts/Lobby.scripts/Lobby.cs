@@ -549,7 +549,7 @@ namespace Lobby.scripts
                     //JoinServer(Target);
 
                 }
-                else if (jumping) { MyAPIGateway.Utilities.ShowMessage("Travel ", "Aborting Travel"); jumping = false; }
+                else if (jumping) { MyAPIGateway.Utilities.ShowMessage("Travel ", "Aborting Travel"); jumping = false; chargetime = 20; }
                 return true;
             }
             #endregion jump
