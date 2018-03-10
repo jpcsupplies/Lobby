@@ -71,6 +71,9 @@ namespace Lobby.scripts
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
 
+        MyEntity3DSoundEmitter emitter;
+        readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
+
         /// <summary>
         ///     Quick check to see if the script is trying to run server side.
         /// </summary>
@@ -177,16 +180,11 @@ namespace Lobby.scripts
                         MyAPIGateway.Utilities.ShowMessage("", reply);
                     }
                     
-                    /*var startTime = DateTime.UtcNow;
 
-                while (DateTime.UtcNow - startTime < TimeSpan.FromSeconds(10))
-                {
-                    // Execute your loop here...
-                }*/
                 } else if (chargetime<=0 && jumping) {
                     jumping = false;
                     chargetime = 20;
-                    MyAPIGateway.Utilities.ShowMessage("result go to",lockedtarget);
+                    MyAPIGateway.Utilities.ShowMessage("Travelling to ",lockedtarget);
                     JoinServer(Target);
                 }
             }
