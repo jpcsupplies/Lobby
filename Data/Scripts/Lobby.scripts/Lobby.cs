@@ -18,7 +18,7 @@
  *  
 */
 
-namespace Economy.scripts
+namespace Lobby.scripts
 {
     using System;
     using System.Collections.Generic;
@@ -31,7 +31,7 @@ namespace Economy.scripts
     using Sandbox.Common;
     //using Sandbox.Common.ObjectBuilders;
     using Sandbox.Definitions;
-    //using Sandbox.Game.Entities;
+    using Sandbox.Game.Entities;
     using Sandbox.Game.EntityComponents;
     using Sandbox.ModAPI;
     using VRage;
@@ -53,6 +53,7 @@ namespace Economy.scripts
         bool seenPopup = false; //have we already displayed a popup in this zone?
         bool  noZone = true; //no zone in sight?
         public bool quiet = true; // shall we nag the player about intersteller space?
+        public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
         public string Zone = "Scanning...";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
 
@@ -155,13 +156,39 @@ namespace Economy.scripts
                         if (Target == "0.0.0.0:27270" || Target=="none") { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
                         else { reply = Zone + " [Type /depart to travel]"; }
 
-                        MyAPIGateway.Utilities.ShowMessage("Departure point", reply); 
+                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply); 
                         //}
 
                     }
                     else { Zone = "Scanning..."; Target = "none"; /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone; */ }
                 }
                 counter++;
+
+                //this stuff controls times for charging to jump etc its aethetic only so the sound plays before connect
+                if (jumping && chargetime>0)
+                {
+                    //         jumping chargetime startTime lockedtarget 
+                    //     
+                    string reply = "";
+                    if (DateTime.UtcNow - startTime > TimeSpan.FromSeconds(1)) {
+                        startTime = DateTime.UtcNow;
+                        chargetime--;
+                        reply = "Charging " + chargetime;
+                        MyAPIGateway.Utilities.ShowMessage("", reply);
+                    }
+                    
+                    /*var startTime = DateTime.UtcNow;
+
+                while (DateTime.UtcNow - startTime < TimeSpan.FromSeconds(10))
+                {
+                    // Execute your loop here...
+                }*/
+                } else if (chargetime<=0 && jumping) {
+                    jumping = false;
+                    chargetime = 20;
+                    MyAPIGateway.Utilities.ShowMessage("result go to",lockedtarget);
+                    JoinServer(Target);
+                }
             }
             base.UpdateAfterSimulation();
         }
@@ -183,7 +210,7 @@ namespace Economy.scripts
         /// <param name="ip"></param>
         public static void JoinServer(string ip)
         {
-            //Little change to allow instant to work at a later date hopefully.
+            //Little change to joinserver to allow instant to work at a later date hopefully, courtesy of rexxars brain.
             MyAPIGateway.Utilities.InvokeOnGameThread(() => MyAPIGateway.Multiplayer.JoinServer(ip));
         }
 
@@ -472,6 +499,26 @@ namespace Economy.scripts
             //we fell through a hole nothing to see here
         }
 
+      
+        /// <summary>
+        ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
+        /// </summary>
+        public static void PlaySound(string soundName, float volume = 1.0f)   //Play sound to local player only
+        {
+            var controlled = MyAPIGateway.Session?.ControlledObject?.Entity;
+
+            if (controlled == null)
+                return; // don't continue if session is not ready or player does not control anything.
+
+            var emitter = new MyEntity3DSoundEmitter((MyEntity)controlled);
+            emitter.CustomVolume = volume;
+            emitter.PlaySingleSound(new MySoundPair(soundName));
+            emitter.Cleanup();
+        }
+
+
+
+
         #region command list
         /// <summary>
         ///     Checks command line text for commands to process
@@ -486,14 +533,23 @@ namespace Economy.scripts
             #region depart
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
             {
-                if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270")
+                if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
                 {
                     //throw a connection to a foreign server from server ie in lobby worlds or we have moved worlds
                     //MyAPIGateway.Multiplayer.JoinServer(Target);
                     //This is a variant rexxar did to overcome the crash:
-                    JoinServer(Target);
+                    //need a 25 second delay here.
+                    MyAPIGateway.Utilities.ShowMessage("Travel ", "Preparing to depart - /depart again to abort");
+                    startTime = DateTime.UtcNow;
+                    PlaySound("IJump", 2f);
+                    jumping = true;
+                    lockedtarget = Target;
+                    //have to flip a flag to depart so we trigger a sim timer and counter then launch joinserver
+
+                    //JoinServer(Target);
 
                 }
+                else if (jumping) { MyAPIGateway.Utilities.ShowMessage("Travel ", "Aborting Travel"); jumping = false; }
                 return true;
             }
             #endregion jump

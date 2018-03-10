@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+ <Sounds>
+    <Sound>
+      <Id>
+        <TypeId>MyObjectBuilder_AudioDefinition</TypeId>
+        <SubtypeId>IJump</SubtypeId>
+      </Id>
+      <MaxDistance>100</MaxDistance>
+      <Volume>1.00</Volume>
+      <Loopable>false</Loopable>
+      <Pitch>0</Pitch>
+      <Waves>
+        <Wave Type="D2">
+          <Start>Audio\Interstellar_Jump.xwm</Start>
+        </Wave>
+      </Waves>
+    </Sound>
+  </Sounds>
+</Definitions>
