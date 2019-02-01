@@ -11,7 +11,7 @@
       <Loopable>false</Loopable>
       <Pitch>0</Pitch>
       <Waves>
-        <Wave Type="D2">
+        <Wave Type="D3">
           <Start>Audio\Interstellar_Jump.xwm</Start>
 	  <End></End>
         </Wave>
