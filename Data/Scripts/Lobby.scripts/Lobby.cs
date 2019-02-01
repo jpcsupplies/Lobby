@@ -595,33 +595,33 @@ namespace Lobby.scripts
                 */
 
                 int playerno=0;
-                string namez = "";
+                string namez = "Detected players\r\n";
                 foreach (var player in players)
                 {
                     namez += players[playerno].SteamUserId+" - "+ MyAPIGateway.Session.Player.SteamUserId+"\r\n";
                     playerno++;
-                var sphere = new BoundingSphereD(player.GetPosition(), 9);
-                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                    var sphere = new BoundingSphereD(player.GetPosition(), 9);
+                    var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
                 
-                string[] LCDTags = new string[] { "[destination]", "(destination)" };
-                foreach (var block in LCDlist)
-                {
+                    string[] LCDTags = new string[] { "[destination]", "(destination)" };
+                    foreach (var block in LCDlist)
+                    {
                     
-                    var textPanel = block as IMyTextPanel;
-                    if (textPanel != null
+                        var textPanel = block as IMyTextPanel;
+                        if (textPanel != null
                         && textPanel.IsFunctional
                         && textPanel.IsWorking
                         && LCDTags.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                    {
-                        updatelist.Add((IMyTextPanel)block);
+                        {
+                            updatelist.Add((IMyTextPanel)block);
+                        }
                     }
                 }
-                }
 
-                MyAPIGateway.Utilities.ShowMissionScreen("names", "", "Warning", namez, null, "Close");
+                MyAPIGateway.Utilities.ShowMissionScreen("Online player names", "", "Warning", namez, null, "Close");
 
                 foreach (var textPanel in updatelist)
-            { 
+                { 
               //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     var checkArray = (textPanel.GetPublicTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     string reply="";
@@ -635,8 +635,8 @@ namespace Lobby.scripts
                      }  else { reply = " I got less than 2 - so it is invalid";  }
                      MyAPIGateway.Utilities.ShowMessage("TEST", reply);
 
-           }
-            return true;
+                }
+                return true;
             }
             #endregion test
 
