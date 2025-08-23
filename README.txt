@@ -2,7 +2,7 @@ Space Engineeers Workshop;
 Lobby World MOD
 ======================
 
-Developed by PhoenixX
+Developed by PhoenixX (Aka Pirate Captain X)
 
 ======================
 
@@ -120,4 +120,6 @@ message to visitors of your ship or space station!
 *******
 To increase compatability with non-english keyboards you can use [ ]  or ( ) in your LCD Tags, 
 and they are case insensitive.
+
+
 
