@@ -26,24 +26,53 @@ How to use:
 *Dynamic      * 
 *Destinations:*
 ***************
-Create an LCD on a large station or ship you wish to use as a "travel point"
-NAME the LCD block: [destination]
-In the Public Title field insert the steam address of a space engineers server you wish players 
-to be able to travel to - for example 221.121.159.238:27270
-After the server address in the public title field put in a description of one or more words. 
-Eg Ramblers Frontier 
-What you should now see in your title field is: 221.121.159.238:27270 Ramblers Frontier
+Create an LCD on a large station or ship you wish to use as a "travel departure point"
+Using "NAME" field on the LCD block key in: [destination] followed by your desired destination server
+address and port and a description - for example 
+[destination] 221.121.159.238:27270 Orion Pirates Zone
 
+This will allow players within 9 metres of that LCD to /depart and travel to that server. The chat 
+displays a notification that this is a departure point every few seconds or so until they /depart
+or move more than 9 metres from the LCD.
 
-Whenever players come within 9 or so blocks (about the interior size of the default starter lemon ship)
-their screen will indicate they can travel to the "description" (as above) sector, and to type /depart 
-to leave.
+If you want to have an easier way to enter a description you can enable the "text" content option
+and use the LCD screen text editor instead to write in your destination server description.
+Example:   The Orion Pirates PvP Server ARGh!
+This might be useful if you have a lobby station, so players can read the description on the LCD
+without waiting for the chat notification to appear.
+
+The "Title" field of the LCD is not used and can be anything you like, example: "Orion Departure LCD" 
 
 -
+
+********************************
+*Station Pop up message: (fun!)*
+********************************
+Create another LCD on a large station/ship block.
+Using "NAME" field key in: [station] popup 
+Then edit the public text (which is usually shown on the LCD screen) with whatever message
+you would like to pop up on a players screen if they come within 50 metres of the LCD.
+
+Whenever a player comes within 50 or so blocks (about the interior size of a small station or the 
+wing of a large station) the pop up message will appear on the players screen and output the text
+you specified, and not be shown again unless they travel outside of 50 metres from the LCD then
+return again.
+
+You do NOT requre any destination LCD, you can use these popups simply as an automatic welcome 
+message to visitors of your ship or space station!
+
+- 
 
 ******************************
 * Interstellar Space Boundry *
 ******************************
+This feature is a little buggy at the moment, and might not work at all as the newest game code 
+only exposes grids within 5km of the player, which somewhat limits this option, unless you are 
+within a ship that contains the boundry definition, or you just have really small boundries!
+
+It is suggested you do not use this features until we update the code here to use server side
+config files.
+
 You can Set World "boundries" so that if a player flies off the edge of the allowed world - they 
 enter "interstellar space" (the empty void between "sectors" (servers)) and can travel to whatever 
 "sector"  (server) is assigned that direction.
@@ -76,14 +105,14 @@ could simply place a single block underground on a planet and place an LCD on ea
 set that represents each exit direction. Just keep in mind cleanup tools may delete unpowered
 grids.
 
-NAME the LCD the desired direction of interstellar space.
+"NAME" the LCD the desired direction of interstellar space.
 Eg.  [GW] or [GE] or [GN] or [GS] or [GU] or [GD] 
 
-In the Public Title Field insert the steam address of the server you wish people to travel to,
+In the LCD Text Field insert the steam address of the server you wish people to travel to,
 eg. 221.121.149.13:28790 
 After the server address put in a brief description eg.  Lawless Void Sector
 
-What you should now see in your title field is: 221.121.149.13:28790 Lawless Void Sector
+What you should now see in your LCD text field is: 221.121.149.13:28790 Lawless Void Sector
 
 So for example if you wish players who enter the "Galactic West" Interstellar space of your map
 to be able to travel to the Lawless Void Sector server your LCD should look like this:
@@ -95,23 +124,8 @@ You can have more than one direction go to the same sector by simply adding more
 with a space between.  
 Eg:  [GW] [GN] [GS]
 
--
-
-********************************
-*Station Pop up message: (fun!)*
-********************************
-Create another LCD on a large station/ship block.
-NAME the LCD block [station]
-use the keyword "popup" in the public title field
-then edit the public text with the pop up message you want to show when a player is near this LCD
-
-Whenever a player comes within 50 or so blocks (about the interior size of a small station or the 
-wing of a large station) the pop up message will appear on the players screen and output the text
-you specified.
-
-
-You do NOT requre a destination LCD, you can use these popups simply as an automatic welcome 
-message to visitors of your ship or space station!
+In theory you can override how far the boundry is (at the moment only 5km) but that part of 
+the mod is currently not working as expected.
 
 -
 
