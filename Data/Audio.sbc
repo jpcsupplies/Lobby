@@ -12,7 +12,7 @@
       <Pitch>0</Pitch>
       <Waves>
         <Wave Type="D3">
-          <Start>Audio\Interstellar_Jump.xwm</Start>
+          <Start>Data\Sounds\Interstellar_Jump.xwm</Start>
 	  <End></End>
         </Wave>
       </Waves>
