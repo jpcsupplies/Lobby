@@ -22,28 +22,40 @@ namespace Lobby.scripts
 {
     using System;
     using System.Collections.Generic;
-    //using System.Globalization;
-    //using System.IO;
     using System.Linq;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Timers;
-    //using Sandbox.Common;
-    //using Sandbox.Common.ObjectBuilders;
-    //using Sandbox.Definitions;
     using Sandbox.Game.Entities;
-    //using Sandbox.Game.EntityComponents;
     using Sandbox.ModAPI;
-    //using VRage;
-    //using VRage.Game;
+    using VRage;
+    using VRage.Game;
     using VRage.Game.ModAPI;
     using VRage.ModAPI;
     using VRage.Audio;
     using VRage.Game.Components;
-    using VRage.Game.Entity;
-    //using VRage.Game.ObjectBuilders.Definitions;
-    //using VRage.ObjectBuilders;
+    using VRage.Game.ObjectBuilders;
+    using VRage.Game.ObjectBuilders.Definitions;
+    using VRage.ObjectBuilders;
     using VRageMath;
+    //using System.Globalization;
+    //using System.IO;
+    using Sandbox.Common;
+    using Sandbox.Common.ObjectBuilders;
+    using Sandbox.Common.ObjectBuilders.Definitions;
+    using Sandbox.Definitions;
+    using Sandbox.Game.EntityComponents;
+    using VRage.Game.Entity;
+    using ProtoBuf;
+
+    [ProtoContract]
+    public class Destination
+    {
+        [ProtoMember(1)] public string Address; // e.g., "1.2.3.4:12345"
+        [ProtoMember(2)] public string NetworkName; // e.g., "Orion"
+        [ProtoMember(3)] public string Description; // e.g., "Ramblers Frontier"
+    }
+
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
@@ -73,6 +85,9 @@ namespace Lobby.scripts
         public string GND = "Galactic North"; // +Y
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
+
+        private const string CONFIG_FILE = "LobbyDestinations.cfg";
+        private List<Destination> serverDestinations = new List<Destination>();
 
         MyEntity3DSoundEmitter emitter;
         readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
@@ -116,21 +131,28 @@ namespace Lobby.scripts
                  MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Add("Scanning..");
                  MyAPIGateway.Utilities.GetObjectiveLine().Show(); */
 
+                // Check and create default config
+                if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
+                {
+                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                }
+
                 //Do an initial 5 second pre-warmup looking for LCDs
                 initTimer = new Timer(5000); // 5s delay
                 initTimer.Elapsed += (s, e) =>
                 {
                     // Force entity refresh
-                    var entities = new HashSet<IMyEntity>();
-                    MyAPIGateway.Entities.GetEntities(entities); // Refresh entity cache
+                    //var entities = new HashSet<IMyEntity>();
+                    //MyAPIGateway.Entities.GetEntities(entities); // Refresh entity cache
                     setexits();
                     UpdateLobby(false);
-                    initDone = true;
+                    ParseConfigText(LoadConfigText());
                     initTimer.Stop();
                     //initTimer.Dispose(); // No Dispose to avoid error
                 };
                 initTimer.AutoReset = false;
                 initTimer.Start();
+                MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
 
                 //Lets let the user know whats up. 
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
@@ -139,7 +161,8 @@ namespace Lobby.scripts
                 if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; }
                 else { MyAPIGateway.Utilities.ShowMessage("Note", "No Interstellar Space Detected."); }
                 //now user configured - MyAPIGateway.Utilities.ShowMissionScreen("Lobby", "", "Warning", "Welcome to gateway Station.\r\n\r\nPlease enter a shuttle and when indicated on hud..\r\nType /depart to travel to its sector.", null, "Close");
-            } else { initDone = true;  }
+            }
+            initDone = true;
         }
 
         /// <summary>
@@ -249,11 +272,14 @@ namespace Lobby.scripts
         /// <summary>
         ///     Processes chat text and decides if it should show in game chat or not.
         /// </summary>
+        /// 
         private void gotMessage(string messageText, ref bool sendToOthers)
         {
+            string reply;
             // here is where we nail the echo back on commands "return" also exits us from processMessage
             // return true supresses echo back, false allows it.
-            if (ProcessMessage(messageText)) { sendToOthers = false; }
+            if (ProcessMessage(messageText, out reply)) { sendToOthers = false; }
+            if (!string.IsNullOrEmpty(reply)) { MyAPIGateway.Utilities.ShowMessage("Lobby", reply); }
         }
 
 
@@ -291,7 +317,7 @@ namespace Lobby.scripts
                 //&& textPanel.IsFunctional
                 //&& textPanel.IsWorking
                 // was below, relaxed for more agressive lcd detection
-                if (textPanel != null   
+                if (textPanel != null
                     && LCDTags3.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                 {
                     updatelist3.Add((IMyTextPanel)block); //be more efficient to populate our LCD list here methinks.. instead of scan the list below
@@ -467,7 +493,7 @@ namespace Lobby.scripts
                 var sphere2 = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 50); //popup notification lcds
                 var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
                 string[] LCDTags2 = new string[] { "[station]", "(station)" };
-                
+
                 if (!quiet)
                 {
                     //check the player location in relation to Intersteller space boundries.
@@ -511,9 +537,9 @@ namespace Lobby.scripts
                 foreach (var block in LCDlist2) //popup station notification lcds
                 {
                     var textPanel = block as IMyTextPanel;
-                    if (textPanel != null                    
-                        && textPanel.IsFunctional                    
-                        && textPanel.IsWorking                       
+                    if (textPanel != null
+                        && textPanel.IsFunctional
+                        && textPanel.IsWorking
                         && LCDTags2.Any(tag => textPanel.CustomName?.ToString().IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                     {
                         noZone = false;
@@ -523,7 +549,7 @@ namespace Lobby.scripts
                 }
 
                 //special option lcds - popup station messages etc?
-                               
+
                 //orignal logic
                 foreach (var textPanel in updatelist2)
                 {
@@ -556,28 +582,16 @@ namespace Lobby.scripts
                     // this was here for a reason but debug code not using it atm. else { break; }
                 }
 
-                //destination lcd
-                //Original code disabled for debug
-                /*
-                foreach (var textPanel in updatelist)
+                if (serverDestinations.Any() && updatelist.Any())
                 {
-                    //var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    var checkArray = (textPanel.GetPublicTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //fix for removal of private text by keen
-                    if (checkArray.Length >= 2) //if its Not at least 2 its invalid.
-                    {
-                        int title = 0; Zone = "";
-                        foreach (var str in checkArray)
-                        {
-                            //string reply = "i got " + checkArray.Length + " " + checkArray[0] + " " + checkArray[1];
-                            //MyAPIGateway.Utilities.ShowMessage("TEST", reply);
-                            if (title != 0 && title <= checkArray.Length) { Zone += " " + checkArray[title]; }
-                            title++;
-                        }
-                        Target = checkArray[0]; return true; //this should probably check if ip is valid format but other than exiting current map nothing bad seems to occur if its invalid
-                    }
-                    else { return false; }
-                } 
-                */
+                    var dest = serverDestinations.First(); // Use first valid destination
+                    Target = dest.Address;
+                    Zone = dest.Description;
+                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                    return true;
+                }
+
+                //destination lcd
                 foreach (var textPanel in updatelist)
                 {
                     var nameArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -645,12 +659,50 @@ namespace Lobby.scripts
         /// <summary>
         ///     Checks command line text for commands to process
         /// </summary>
-        private bool ProcessMessage(string messageText)
+        private bool ProcessMessage(string messageText, out string reply)
         {
-            string[] split = messageText.Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            reply = "";
+            //string[] split = messageText.Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var split = messageText.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             // nothing useful was entered.
             if (split.Length == 0)
                 return false;
+
+            #region editconfig
+            if (split[0].Equals("/lconfig", StringComparison.InvariantCultureIgnoreCase))
+            {
+                ShowConfigSummary(out reply);
+                return true;
+            }
+                        
+            if (split[0].Equals("/ledit", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return SpawnConfigLCD(out reply);
+            }
+            // ~line 680, in ProcessMessage, replace /saveconfig
+            if (split[0].Equals("/lsave", StringComparison.InvariantCultureIgnoreCase))
+            {
+                var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 9);
+                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                foreach (var block in LCDlist)
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && textPanel.CustomName.ToString().IndexOf("[config]", StringComparison.InvariantCultureIgnoreCase) >= 0)
+                    {
+                        SaveConfigText(textPanel.GetText() ?? "");
+                        var grid = textPanel.CubeGrid as IMyCubeGrid;
+                        var blocks = new List<IMySlimBlock>();
+                        if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
+                        if (grid != null && blocks.Count == 1) { grid.Close(); }
+                        reply = "Config saved and LCD despawned.";
+                        return true;
+                    }
+                }
+                reply = "No [config] LCD found nearby";
+                return true;
+            }
+
+            #endregion editconfig
 
             #region depart
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
@@ -680,7 +732,7 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                string versionreply = "3.51 ";
+                string versionreply = "Gateway Lobby 3.52 (initial server side alpha)";
                 MyAPIGateway.Utilities.ShowMessage("VER", versionreply);
                 return true;
             }
@@ -740,7 +792,8 @@ namespace Lobby.scripts
                     foreach (var textPanel in updatelist)
                     {
                         var checkArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        string reply = "";
+                        //string 
+                        reply = "";
                         if (checkArray.Length >= 2)
                         {
                             int title = 0; Zone = "";
@@ -766,7 +819,8 @@ namespace Lobby.scripts
             {
                 if (split.Length <= 1)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Commands: Lhelp, depart, ver, ltest");
+                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Commands: lhelp, depart, ver, ltest");
+                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Admin Commands: ledit, lsave"); //these should only show to admins later
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Features: popup, destination, interstellar");
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Try '/Lhelp command/feature' for more informations about specific items.");
                     return true;
@@ -776,6 +830,34 @@ namespace Lobby.scripts
                     string helpreply = "";
                     switch (split[1].ToLowerInvariant())
                     {
+                        case "lconfig":
+                            helpreply = "Briefly summarises the map exits and settings.\r\n" +
+                                "Also includes any nearby stations or departure LCDs.\r\n" +
+                                "Informational only.\r\n";
+                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /lconfig");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lconfig command", helpreply, null, "Close");
+                            return true;
+                        case "ledit":
+                            helpreply = "Spawns a [config] LCD to define interstellar departure points.\r\n" +
+                                "Edit LCD text for your desired destination server directions.\r\n(Highlight LCD, pres F)\r\n" +
+                                "Also allows you to set cube size of your map and buffer width of edge.\r\n" +
+                                "Cubesize is how far from middle of map to travel to reach a\r\n " +
+                                "departure direction. Buffer is width of border zone that warns\r\n" +
+                                "you are approached edge of interstellar space.\r\n" +
+                                "Type /lsave to confirm changes and write it to the server.\r\n" +
+                                "The LCD is removed once saved.\r\n" +
+                                "This command is only available to admin or space master users.\r\n\r\n";
+                            MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /ledit");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ledit command", helpreply, null, "Close");
+                            return true;
+                        case "lsave":
+                            helpreply = "Saves your defined interstellar departure point settings/exits\r\n" +
+                                "(after using /ledit) from the spawned LCD text box editor.\r\n" +
+                                "Removes the Spawned LCD after saving the changes.\r\n" +
+                                "This command is only available to admin or space master users.\r\n\r\n"; 
+                            MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /lsave");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lsave command", helpreply, null, "Close");
+                            return true;
                         case "depart":
                             helpreply = "Player travels to another server world\r\n" +
                                 "The world you connect to depends on your location\r\n" +
@@ -789,14 +871,19 @@ namespace Lobby.scripts
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ver command", helpreply, null, "Close");
                             return true;
                         case "ltest":
-                            helpreply = "Simple debug tool for the mod scanner/sound subs\r\n";
-                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ltest or /ltest sound");
+                            helpreply = "Simple debug tool for testing the mod scanner/sound subs\r\n" +
+                                "'sound' test plays the jump sound without jumping.\r\n" +
+                                "no parameter runs a scan test of nearby objects and halts sounds.\r\n" +
+                                "'init' reruns initialisation to debug sync issues.\r\n" +
+                                "Note: some or all of these may be removed or disabled.\r\n" +
+                                "parameters: nothing, sound, init";
+                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ltest or /ltest sound or /ltest init"); //should also be admin only
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "test command", helpreply, null, "Close");
                             return true;
                         case "popup":
                             helpreply = "Displays a popup message to players when they \r\napproach your ship or station. \r\n" +
-                                        "Name an LCD [station] then put the keyword popup in the public title field\r\n" +
-                                        "Any message written in the Public Text box will be shown in the popup.\r\n";
+                                        "Name a LCD: [station] popup\r\n" +
+                                        "Any message written in the LCD Public Text box (highlight screen press f)\r\nwill be shown in the popup.\r\n";
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "popup", helpreply, null, "Close");
                             return true;
                         case "destination":
@@ -808,8 +895,10 @@ namespace Lobby.scripts
                         case "interstellar":
                             helpreply = "The boundry of interstellar space in your region. \r\n" +
                                         "Crossing it players can travel to a server/sector\r\ndefined in that direction.\r\nThis is usually configured by game admin.\r\n" +
-                                        "Depending on settings you will need to type /depart \r\nto travel. Boundries are usually \r\naround 1000 Kms from centre of map.\r\nThere can be up to 6 directions defined.\r\n\r\n" +
-                                        "If you are a server admin, refer to the workshop page.";
+                                        "Depending on settings you will need to type /depart \r\nto travel. Boundries are usually \r\naround 1000 Kms from centre of map but may vary by server.\r\nThere can be up to 6 directions defined.\r\n\r\n" +
+                                        "If you are a server admin, refer to the workshop page.\r\n" +
+                                        "But to summarise imagine the map as a cube, each side\r\n" +
+                                        "is a different server you could travel to.";
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", helpreply, null, "Close");
                             return true;
                         default:
@@ -824,6 +913,217 @@ namespace Lobby.scripts
             return false;
         }
         #endregion command list
+
+        //Grabs all important mod settings and displays it on screen for enduser reference.
+        private void ShowConfigSummary(out string reply)
+        {
+            reply = "";
+            StringBuilder summary = new StringBuilder();
+
+            // Header
+            summary.AppendLine("Interstellar Departure Points:");
+
+            // Configured destinations from serverDestinations
+            if (serverDestinations.Any())
+            {
+                foreach (var dest in serverDestinations)
+                {
+                    summary.AppendLine($"[{dest.NetworkName}] {dest.Address} - {dest.Description}");
+                }
+            }
+            else
+            {
+                summary.AppendLine("No destinations configured in LobbyDestinations.cfg.");
+            }
+
+            // Interstellar boundaries from global variables
+            summary.AppendLine("\nInterstellar Boundaries:");
+            summary.AppendLine($"[GW] Galactic West: {(GW == "0.0.0.0:27270" ? "Not set" : $"{GW} - {GWD} at X={GWP:F0}m")}");
+            summary.AppendLine($"[GE] Galactic East: {(GE == "0.0.0.0:27270" ? "Not set" : $"{GE} - {GED} at X={GEP:F0}m")}");
+            summary.AppendLine($"[GN] Galactic North: {(GN == "0.0.0.0:27270" ? "Not set" : $"{GN} - {GND} at Y={GNP:F0}m")}");
+            summary.AppendLine($"[GS] Galactic South: {(GS == "0.0.0.0:27270" ? "Not set" : $"{GS} - {GSD} at Y={GSP:F0}m")}");
+            summary.AppendLine($"[GU] Galactic Up: {(GU == "0.0.0.0:27270" ? "Not set" : $"{GU} - {GUD} at Z={GUP:F0}m")}");
+            summary.AppendLine($"[GD] Galactic Down: {(GD == "0.0.0.0:27270" ? "Not set" : $"{GD} - {GDD} at Z={GDP:F0}m")}");
+
+            // Nearby [station] and [destination] LCDs
+            var player = MyAPIGateway.Session.Player;
+            if (player != null)
+            {
+                // [destination] LCDs (9m radius)
+                var destSphere = new BoundingSphereD(player.GetPosition(), 9);
+                var destLCDs = new HashSet<IMyTextPanel>();
+                var destEntities = MyAPIGateway.Entities.GetEntitiesInSphere(ref destSphere);
+                string[] destTags = new string[] { "[destination]", "(destination)" };
+                foreach (var block in destEntities)
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && destTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                    {
+                        destLCDs.Add(textPanel);
+                    }
+                }
+
+                // [station] LCDs (50m radius)
+                var stationSphere = new BoundingSphereD(player.GetPosition(), 50);
+                var stationLCDs = new HashSet<IMyTextPanel>();
+                var stationEntities = MyAPIGateway.Entities.GetEntitiesInSphere(ref stationSphere);
+                string[] stationTags = new string[] { "[station]", "(station)" };
+                foreach (var block in stationEntities)
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && textPanel.IsFunctional && textPanel.IsWorking && stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                    {
+                        stationLCDs.Add(textPanel);
+                    }
+                }
+
+                // Append LCD info
+                summary.AppendLine("\nNearby LCDs:");
+                if (destLCDs.Any() || stationLCDs.Any())
+                {
+                    foreach (var lcd in destLCDs)
+                    {
+                        var nameArray = lcd.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                        string address = nameArray.Length > nameIdx ? nameArray[nameIdx] : "Unknown";
+                        string desc = lcd.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1));
+                        summary.AppendLine($"[destination] {address} - {desc} at {lcd.GetPosition():F0}");
+                    }
+                    foreach (var lcd in stationLCDs)
+                    {
+                        string popup = lcd.GetText() ?? "No message";
+                        summary.AppendLine($"[station] {lcd.CustomName} - {popup} at {lcd.GetPosition():F0}");
+                    }
+                }
+                else
+                {
+                    summary.AppendLine("No [station] or [destination] LCDs within range.");
+                }
+            }
+            else
+            {
+                summary.AppendLine("\nNearby LCDs: Player position unavailable.");
+            }
+
+            // Caption
+            summary.AppendLine("\nInterstellar exit points can be configured by admin with /ledit and /lsave by editing the text on the LCD that will spawn, /lhelp for more details.");
+
+            // Display in a mission screen
+            MyAPIGateway.Utilities.ShowMissionScreen("Lobby Config Summary", "", "", summary.ToString(), null, "Close");
+            reply = "Config summary displayed.";
+        }
+
+        //Spawn in an LCD for editing exits
+        private bool SpawnConfigLCD(out string reply)
+        {
+            reply = "";
+            if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+            {
+                reply = "Access denied: Requires Space Master or higher.";
+                return false;
+            }
+            var player = MyAPIGateway.Session.Player;
+            if (player == null) { reply = "Failed: No player."; return false; }
+            var character = player.Character;
+            if (character == null) { reply = "Failed: No controlled entity."; return false; }
+            Vector3D position = character.GetPosition() + character.WorldMatrix.Forward * 5;
+            Vector3D forward = -character.WorldMatrix.Forward; // Face towards player
+            Vector3D up = character.WorldMatrix.Up;
+            var gridBuilder = new MyObjectBuilder_CubeGrid()
+            {
+                GridSizeEnum = MyCubeSize.Large,
+                IsStatic = true,
+                PersistentFlags = MyPersistentEntityFlags2.InScene,
+                PositionAndOrientation = new MyPositionAndOrientation(position, forward, up),
+                CubeBlocks = new List<MyObjectBuilder_CubeBlock>
+        {
+            new MyObjectBuilder_TextPanel()
+            {
+                EntityId = 0,
+                SubtypeName = "LargeLCDPanel",
+                Min = new Vector3I(0, 0, 0),
+                BlockOrientation = new MyBlockOrientation(Base6Directions.Direction.Backward, Base6Directions.Direction.Up)
+            }
+        }
+            };
+            var spawnedGrid = MyAPIGateway.Entities.CreateFromObjectBuilderAndAdd(gridBuilder) as IMyCubeGrid;
+            if (spawnedGrid == null) { reply = "Failed to spawn LCD: Obstruction detected."; return false; }
+            var textPanel = spawnedGrid.GetCubeBlock(new Vector3I(0, 0, 0))?.FatBlock as IMyTextPanel;
+            if (textPanel != null)
+            {
+                textPanel.CustomName = "[config]";
+                textPanel.WriteText(LoadConfigText());
+                textPanel.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+                textPanel.FontSize = 1f;
+                textPanel.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.LEFT;
+            }
+            reply = "Config LCD spawned. Interact (F key) to edit, then use /saveconfig.";
+            return true;
+        }
+
+
+
+        private string LoadConfigText()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
+                {
+                    using (var reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
+                    {
+                        return reader.ReadToEnd();
+                    }
+                }
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
+            }
+            catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
+        }
+
+        private void SaveConfigText(string text)
+        {
+            try
+            {
+                using (var writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
+                {
+                    writer.Write(text);
+                }
+                ParseConfigText(text);
+                UpdateLobby(false);
+            }
+            catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
+        }
+
+        private void ParseConfigText(string text)
+        {
+            serverDestinations.Clear();
+            var lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[GE]") || trimmed.StartsWith("[GW]") || trimmed.StartsWith("[GN]") ||
+                    trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 3)
+                    {
+                        serverDestinations.Add(new Destination
+                        {
+                            Address = parts[1],
+                            NetworkName = parts[2],
+                            Description = string.Join(" ", parts.Skip(3))
+                        });
+                    }
+                }
+                else if (trimmed.StartsWith("[cubesize]"))
+                {
+                    // Handle cubesize (e.g., for setexits)
+                }
+                else if (trimmed.StartsWith("[edgebuffer]"))
+                {
+                    // Handle edgebuffer
+                }
+            }
+        }
 
 
     }
