@@ -62,8 +62,9 @@ namespace Lobby.scripts
     {
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
-        bool instant = false;  //should it auto-depart or wait of the depart command (disabled at the moment)
+        //bool instant = false;  //should it auto-depart or wait of the depart command (disabled at the moment)
         bool seenPopup = false; //have we already displayed a popup in this zone?
+        public long lastStationId = 0; // Tracks the last station LCD that triggered a popup
         bool noZone = true; //no zone in sight?
         private bool handlerRegistered = false;
         private Timer initTimer; //timer for pausing init long enough for grids to load in
@@ -71,6 +72,8 @@ namespace Lobby.scripts
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
         public string Zone = "Scanning...";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
+        public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
+        public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
 
         public string GW = "0.0.0.0:27270"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:27270"; public double GEP = 10000000; //X
@@ -115,12 +118,9 @@ namespace Lobby.scripts
         {
             if (!handlerRegistered)
             {
-                MyAPIGateway.Utilities.MessageEntered += gotMessage;
+                MyAPIGateway.Utilities.MessageEntered += GotMessage;
                 handlerRegistered = true;
             }
-            // moving to else given 5 second delay logic added initDone = true;
-            //Additional startup checks to force detection of grids already in the world
-            //Which for some reason are otherwise impossble to scan until state change
 
             if (!AmIaDedicated())
             {
@@ -141,14 +141,10 @@ namespace Lobby.scripts
                 initTimer = new Timer(5000); // 5s delay
                 initTimer.Elapsed += (s, e) =>
                 {
-                    // Force entity refresh
-                    //var entities = new HashSet<IMyEntity>();
-                    //MyAPIGateway.Entities.GetEntities(entities); // Refresh entity cache
-                    setexits();
+                    ParseConfigText(LoadConfigText()); // Ensure globals are updated
+                    SetExits();
                     UpdateLobby(false);
-                    ParseConfigText(LoadConfigText());
                     initTimer.Stop();
-                    //initTimer.Dispose(); // No Dispose to avoid error
                 };
                 initTimer.AutoReset = false;
                 initTimer.Start();
@@ -156,11 +152,9 @@ namespace Lobby.scripts
 
                 //Lets let the user know whats up. 
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
-                //MyAPIGateway.Utilities.ShowMessage("Lobby", "Type '/Lhelp' for more informations about available commands.");
                 //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
-                if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; }
+                if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; }
                 else { MyAPIGateway.Utilities.ShowMessage("Note", "No Interstellar Space Detected."); }
-                //now user configured - MyAPIGateway.Utilities.ShowMissionScreen("Lobby", "", "Warning", "Welcome to gateway Station.\r\n\r\nPlease enter a shuttle and when indicated on hud..\r\nType /depart to travel to its sector.", null, "Close");
             }
             initDone = true;
         }
@@ -172,7 +166,7 @@ namespace Lobby.scripts
         {
             if (handlerRegistered)
             {
-                MyAPIGateway.Utilities.MessageEntered -= gotMessage;
+                MyAPIGateway.Utilities.MessageEntered -= GotMessage;
                 handlerRegistered = false;
             }
             initTimer?.Stop();
@@ -189,8 +183,6 @@ namespace Lobby.scripts
         /// </summary>
         public override void UpdateAfterSimulation()
         {
-            //Additional forced run of init to get those darn grids to scan
-            //Note this one is not using AmiaDedicated() as init checks this anyway.
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 Init();
 
@@ -199,7 +191,8 @@ namespace Lobby.scripts
             {
                 if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
                 {
-                    setexits();
+                    SetExits();
+                    ParseConfigText(LoadConfigText());
                     UpdateLobby(false);
                     initDone = true;
                 }
@@ -210,51 +203,40 @@ namespace Lobby.scripts
                 if (counter >= 900)
                 {
                     counter = 0;
-                    if (setexits()) { quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
+                    if (SetExits()) { quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
                     if (UpdateLobby(false))
                     {
-                        //if the option for insta teleport is enabled do so on entering a teleport zone.
-                        //Note this option is disabled due to the teleport method throwing errors
-                        //but check left to enable future feature additions later.
-                        if (instant && Target != "none")
-                        {
-                            //MyAPIGateway.Utilities.ShowMessage("Departure point", Target); 
-                            //MyAPIGateway.Multiplayer.JoinServer(Target); //  <-- This crashes ??
-                            //if (ProcessMessage("/depart")) {  }  //<-- so does this !?
-                            //rexxar made a special joinserver use local JoinServer(Target); instead
-                        }
-                        //else
-                        //{
-                        //This could also work but makes line a bit long for casual code review in UI
-                        //string reply = Target == "0.0.0.0:27270" || Target == "none" ? $"Warning: You have reached the edge of {Zone} Interstellar Space" : $"{Zone} [Type /depart to travel]";
-                        string reply = "";
-                        if (Target == "0.0.0.0:27270" || Target == "none") { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
-                        else { reply = Zone + " [Type /depart to travel]"; }
-
-                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
-                        //}
-
+                        string reply = Target == "0.0.0.0:27270"
+                            || Target == "none" ? $"Warning: You have reached the edge of {Zone} Interstellar Space" : $"Departure point: {Zone} [Type /depart to travel]";
+                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Lobby", reply);
                     }
-                    else { Zone = "Scanning..."; Target = "none"; /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives[0] = Zone; */ }
+                    else
+                    {
+                        Zone = "Scanning...";
+                        Target = "none";
+                    }
+                    /*
+                    string reply = "";
+                    if (Target == "0.0.0.0:27270" || Target == "none") { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
+                    else { reply = Zone + " [Type /depart to travel]"; }
+
+                    if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
+                     */
                 }
                 counter++;
 
-                //this stuff controls times for charging to jump etc its aethetic only so the sound plays before connect
+                //this stuff controls times for charging to jump etc its aethetic only so the sound plays before connect 
+                //         jumping chargetime startTime lockedtarget  
                 if (jumping && chargetime > 0)
                 {
-                    //         jumping chargetime startTime lockedtarget 
-                    //     
                     string reply = "";
                     if (DateTime.UtcNow - startTime > TimeSpan.FromSeconds(1))
                     {
                         startTime = DateTime.UtcNow;
                         chargetime--;
-                        //reply = "Charging " + chargetime;
                         reply = $"Charging {chargetime}";
                         MyAPIGateway.Utilities.ShowMessage("", reply);
                     }
-
-
                 }
                 else if (chargetime <= 0 && jumping)
                 {
@@ -273,7 +255,7 @@ namespace Lobby.scripts
         ///     Processes chat text and decides if it should show in game chat or not.
         /// </summary>
         /// 
-        private void gotMessage(string messageText, ref bool sendToOthers)
+        private void GotMessage(string messageText, ref bool sendToOthers)
         {
             string reply;
             // here is where we nail the echo back on commands "return" also exits us from processMessage
@@ -296,133 +278,37 @@ namespace Lobby.scripts
         /// <summary>
         ///     Populates Interstellar Space Boundry Destinations. Returns true if it found any, false if it found none.
         /// </summary>
-        public bool setexits()
+        public bool SetExits()
         {
-            //this probably should only run once to populate the exit facings in a global variable
-            //this file having been populated in or out of the game by a server admin
-            //This should really load from a file, which should be sent from server to client. but using sphere+lcd for testing purposes
-            Vector3D MapCore = new Vector3D(0);
-            var sphere3 = new BoundingSphereD(MapCore, 5000); //Was 10000000 changed to 5km since cant scan more than 5 now area to scan for LCDs defining interstellar space.  10000 km diameter 
-            // note this probably breaks interstellar checks since player is likely nowhere near mapcore
-            var LCDlist3 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere3);
-            string ip = "0.0.0.0:27270"; //target server
-            string description = ""; //target description
-            string[] LCDTags3 = new string[] { "[GW]", "(GW)", "[GE]", "(GE)", "[GN]", "(GN)", "[GS]", "(GS)", "[GU]", "(GU)", "[GD]", "(GD)" };
-            var updatelist3 = new HashSet<IMyTextPanel>(); //list of exit boundries (wall facing checks for interstellar space)
+            // Update globals from serverDestinations (populated by ParseConfigText)
+            GW = GE = GN = GS = GU = GD = "0.0.0.0:27270"; // Reset defaults
+            GWD = "Galactic West"; GED = "Galactic East"; GND = "Galactic North";
+            GSD = "Galactic South"; GUD = "Galactic Up"; GDD = "Galactic Down";
 
+            double range = CubeSize / 2; // Half for distance from center (e.g., 75,000 km)
+            GWP = -range; GSP = -range; GDP = -range;
+            GEP = range; GNP = range; GUP = range;
 
-            foreach (var block in LCDlist3) //area block list filtered by LCD type with any of the above tags
+            foreach (var dest in serverDestinations)
             {
-                var textPanel = block as IMyTextPanel;
-                //&& textPanel.IsFunctional
-                //&& textPanel.IsWorking
-                // was below, relaxed for more agressive lcd detection
-                if (textPanel != null
-                    && LCDTags3.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                switch (dest.NetworkName.ToUpper())
                 {
-                    updatelist3.Add((IMyTextPanel)block); //be more efficient to populate our LCD list here methinks.. instead of scan the list below
-                }
-
-            }
-            if (!updatelist3.Any()) { return false; } //nothing to do?  Lets stop the madness here.
-
-            //Our filtered LCD list containing only interstellar space definition LCDs
-            //for each lcd check its ID tags, and assign the destination server for that exit direction
-            foreach (var textPanel in updatelist3)
-            {
-                //is the data valid
-                //bool LCDValid=false;
-                double rangetocheck = 0;
-                // xVel=xVel * -1; //reverse  direction
-
-                //did they put a distance to check for this exit
-                //if (!double.TryParse(textPanel.GetText(), out rangetocheck)) 
-                rangetocheck = 5000; //depreciated to 5km (due to instancing limits) pending server side cfg 1000000 default distance 1000km if not specified in LCD text
-                // text from lcd title in an array eg [GE] [GS]
-                var titleArray = (textPanel.CustomName).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                //  text from lcd text in an array eg 0.0.0.0:12345 Nowhere Server 
-                var nameArray = (textPanel.GetText()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                //Whats the target server and its description
-                description = "Interstellar Sector: "; //clear out any old data for later checking in the switch for validity
-                if (nameArray.Length >= 1) //if its Not at least 1 its invalid. We need at least a server address. 
-                {
-                    int title = 0;
-                    foreach (var str in nameArray)
-                    {
-                        if (title != 0 && title <= nameArray.Length) { description += " " + nameArray[title]; } //build the description
-                        title++;
-                    }
-                    ip = nameArray[0]; //this should probably check if ip is valid format but other than exiting current map nothing bad seems to occur if its invalid
-                    //description as above
-
-                    //LCDValid = true;
-                }
-                else { ip = "0.0.0.0:27270"; } //ok this lcd is invalid - check for default values later in the depart command as a final check 
-
-                //what exit are we setting 
-                if (titleArray.Length >= 1) //if its Not at least 1 its invalid.
-                {
-                    int exitcount = 0; string ExitName = "";
-                    foreach (var str in titleArray) //if we have more than 1 facing listed in an lcd we go back and check eg more than one facing goes to a single server
-                    {
-                        //check how many/which facing we are working with
-                        if (exitcount + 1 <= titleArray.Length)
-                        {
-                            ExitName = titleArray[exitcount];
-                            //ideally the facings eg GWP GEP etc should match the appropriate X or Y or Z of the related LCD but since I
-                            //plan to replace LCDs in this part with file operations eventually its a moot point - i may set it in the lcd itself 
-                            //for now I am defaulting to 1000 kms
-                            //if the description is blank we default to the galactic title from init
-                            switch (ExitName.ToUpper())
-                            {
-                                case "[GW]":
-                                    GW = ip; if (description != "") GWD = description; GWP = rangetocheck * -1;
-                                    break;
-                                case "[GE]":
-                                    GE = ip; if (description != "") GED = description; GEP = rangetocheck;
-                                    break;
-                                case "[GN]":
-                                    GN = ip; if (description != "") GND = description; GNP = rangetocheck;
-                                    break;
-                                case "[GS]":
-                                    GS = ip; if (description != "") GSD = description; GSP = rangetocheck * -1;
-                                    break;
-                                case "[GU]":
-                                    GU = ip; if (description != "") GUD = description; GUP = rangetocheck;
-                                    break;
-                                case "[GD]":
-                                    GD = ip; if (description != "") GDD = description; GDP = rangetocheck * -1;
-                                    break;
-                                case "(GW)":
-                                    GW = ip; if (description != "") GWD = description; GWP = rangetocheck * -1;
-                                    break;
-                                case "(GE)":
-                                    GE = ip; if (description != "") GED = description; GEP = rangetocheck;
-                                    break;
-                                case "(GN)":
-                                    GN = ip; if (description != "") GND = description; GNP = rangetocheck;
-                                    break;
-                                case "(GS)":
-                                    GS = ip; if (description != "") GSD = description; GSP = rangetocheck * -1;
-                                    break;
-                                case "(GU)":
-                                    GU = ip; if (description != "") GUD = description; GUP = rangetocheck;
-                                    break;
-                                case "(GD)":
-                                    GD = ip; if (description != "") GDD = description; GDP = rangetocheck * -1;
-                                    break;
-                                default:
-                                    break;
-                            }
-
-                        }
-                        exitcount++;
-                    }
+                    case "[GW]":
+                        GW = dest.Address; GWD = dest.Description; break;
+                    case "[GE]":
+                        GE = dest.Address; GED = dest.Description; break;
+                    case "[GN]":
+                        GN = dest.Address; GND = dest.Description; break;
+                    case "[GS]":
+                        GS = dest.Address; GSD = dest.Description; break;
+                    case "[GU]":
+                        GU = dest.Address; GUD = dest.Description; break;
+                    case "[GD]":
+                        GD = dest.Address; GDD = dest.Description; break;
                 }
             }
-            return true;
+
+            return serverDestinations.Any(); // True if any destinations are configured
         }
 
         /// <summary>
@@ -433,191 +319,159 @@ namespace Lobby.scripts
         public bool UpdateLobby(bool debug = false)
         {
             //check our position - are we in a hot spot?
-            //if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
-            if (MyAPIGateway.Session.Player.Controller.ControlledEntity != null)
+            // remove ? so only current player not all players trigger. if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
+            // this might be useful to later reuse for a check that sends a warning to a faction member that an enemy has entered their territory
+
+            // ? has been added again but may still need to remove it, if multiplayers mis-trigger popup resets
+            if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity == null)
             {
-                //hud code, disabled to prevent conflicts with other mods kept for reference
-                /* Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
-                double X = position.X; double Y = position.Y; double Z = position.Z;
-                string whereami = string.Format("[ X: {0:F0} Y: {1:F0} Z: {2:F0} ]", X, Y, Z);
-                MyAPIGateway.Utilities.GetObjectiveLine().Title = whereami; */
+                return false;
+            }
 
-                //hard coded target list cause I suck at server side datafiles..
-                /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
-                 if (X >= -100 && X <= -10 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Black Talon Sector"; Target = "59.167.215.81:27016"; return true; }
-                 if (X >= -100 && X <= -10 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Spokane Survivalist Sector"; Target = "162.248.94.205:27065"; return true; }
-                 if (X >= 10 && X <= 100 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Pandora Sector"; Target = "91.121.145.20:27016"; return true; }
-                 if (X >= 10 && X <= 100 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Ah The Final Frontier"; Target = "192.99.150.136:27039"; return true; }
-                 else { Zone = "Scanning..."; Target = "none"; return false;  }  */
+            //hard coded target list cause I suck at server side datafiles.. kept for reference only
+            /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
+             if (X >= -100 && X <= -10 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Black Talon Sector"; Target = "59.167.215.81:27016"; return true; }
+             if (X >= -100 && X <= -10 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Spokane Survivalist Sector"; Target = "162.248.94.205:27065"; return true; }
+             if (X >= 10 && X <= 100 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Pandora Sector"; Target = "91.121.145.20:27016"; return true; }
+             if (X >= 10 && X <= 100 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Ah The Final Frontier"; Target = "192.99.150.136:27039"; return true; }
+             else { Zone = "Scanning..."; Target = "none"; return false;  }  */
 
+            //look for an lcd customName [destination] then grab the text and extract a server address, network and caption
+            //display the caption in hud, and set the server address to connect to. May also set a network name somehow 
+            //eg. the string/text immediately after the server address which would be cross referenced with configured
+            //known networks in the config file (and the associated passkey when that feature is added) 
+            //long descriptions are pulled using getText from the screen of the LCD or any text added after network name
+            //eg [destination] 14.2.3.1:1234 OGNOrion Orion Pirates Sector
+            //or [destination] 14.2.3.1:1234 OGNOrion    With the "orion pirates sector"  stored on the LCD screen instead.
+            //where both exist - default to the shorter description (most likely the one in customName) for the chat depart pager
 
-                //rip of lcd server code off economy mod..  all it needs to do is test for a block name and any strings
-                //look for an lcd named [destination] then grab the public title and extract a server address and caption
-                //display the caption in hud, and set the server address to connect to
+            //var players = new List<IMyPlayer>();
+            // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
+            Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
+            var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
+            string[] LCDTags = new string[] { "[destination]", "(destination)" };
+            var sphere = new BoundingSphereD(position, 9); //destination lcds
+            var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
 
-                //var players = new List<IMyPlayer>();
-                // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
+            //Debug info
+            if (debug)
+            {
+                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
+            }
 
-                var updatelist = new HashSet<IMyTextPanel>(); //list of destination lcds
-                string[] LCDTags = new string[] { "[destination]", "(destination)" };
-
-                var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 9); //destination lcds
-                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
-
-                //Debug info
-                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}"); }
-                updatelist.Clear(); // Ensure fresh list
-                foreach (var block in LCDlist)
+            //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
+            // Collect [destination] LCDs found
+            foreach (var block in LCDlist)
+            {
+                var textPanel = block as IMyTextPanel;
+                if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                 {
-                    var textPanel = block as IMyTextPanel;
-                    if (debug)
-                    {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Entity: {block?.GetType().Name}, Name: {block?.DisplayName ?? "null"}, CustomName: {(block as IMyTerminalBlock)?.CustomName ?? "null"}");
-                    }
-                    if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                    {
-                        updatelist.Add(textPanel);
-                    }
+                    updatelist.Add(textPanel);
                 }
-                if (debug && updatelist.Count > 0)
+                //if (debug) { } //debug flag if needed
+            }
+
+            //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
+
+            // Process [destination] LCDs first
+            foreach (var textPanel in updatelist)
+            {
+                var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
+                if (nameArray.Length >= 2)
                 {
-                    foreach (var panel in updatelist)
-                    {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Added LCD: {panel.CustomName}, Text: {panel.GetText() ?? "null"}");
-                    }
-                }
-
-
-                //Normal Logic
-                var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup notification lcds
-                var sphere2 = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 50); //popup notification lcds
-                var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
-                string[] LCDTags2 = new string[] { "[station]", "(station)" };
-
-                if (!quiet)
-                {
-                    //check the player location in relation to Intersteller space boundries.
-                    Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
-                    double X = position.X; double Y = position.Y; double Z = position.Z;
-
-                    //Here we check if a player crossed into intersteller space - and confirm which direction travelled the deepest to work out where to send them
-                    //eg say a player is at X= -1000001    Y= 1000000   Z= -1000000   They will be offered travel to Galactic West as that is the highest applicable direction
-                    //if in the unlikely event they are at exactly the apex of 3 travel points, eg X=1000000 Y=1000000 Z=1000000  then they are offered the first matching point ie Galactic East
-                    if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; } //if we crossed -X, and -X is the highest depth travelled in that direction
-                    if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; } //if we crossed +X, and +X is the highest depth travelled in that direction
-                    if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; } //if we crossed -Y, and -Y is the highest depth travelled in that direction
-                    if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; } //if we crossed +Y, and +Y is the highest depth travelled in that direction
-                    if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; } //if we crossed -Z, and -Z is the highest depth travelled in that direction
-                    if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; } //if we crossed +Z, and +Z is the highest depth travelled in that direction
-
-                    // Scan for X Y or Z LCDs located parallel to the players X  Y or Z position?
-                    // or scan for X Y or Z LCDs with a number we can use as the X Y or Z parallel check with player 
-                    //if a player overlaps two facings eg both xy xz or yz  ignore them, or send a warning or use the highest/lowest?
-                    //Should add a 1000 metre warning "approaching interstellar space"
-                }
-
-                //Test code omits this so disabling short term
-                /*
-                foreach (var block in LCDlist) //destination LCDs
-                {
-                    var textPanel = block as IMyTextPanel;
-                       // && textPanel.IsFunctional
-                        //&& textPanel.IsWorking
-                        //was below relaxed for more agressive detection
-                    if (textPanel != null
-                        && LCDTags.Any(tag => textPanel.CustomName.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                    {
-                        //noZone = false;
-                        updatelist.Add((IMyTextPanel)block);
-                    }
-
-                }
-                */
-
-                foreach (var block in LCDlist2) //popup station notification lcds
-                {
-                    var textPanel = block as IMyTextPanel;
-                    if (textPanel != null
-                        && textPanel.IsFunctional
-                        && textPanel.IsWorking
-                        && LCDTags2.Any(tag => textPanel.CustomName?.ToString().IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                    {
-                        noZone = false;
-                        updatelist2.Add(textPanel);
-                        //updatelist2.Add((IMyTextPanel)block);
-                    }
-                }
-
-                //special option lcds - popup station messages etc?
-
-                //orignal logic
-                foreach (var textPanel in updatelist2)
-                {
-                    //string popup = "";
-                    //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //private title removed by keen
-                    var checkArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    string popup = textPanel.GetText() ?? "";
-                    if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
-                    {
-                        int title = 0;
-                        foreach (var str in checkArray)
-                        {
-                            if (title <= checkArray.Length)
-                            {
-                                if (!seenPopup && checkArray[title].Equals("popup", StringComparison.InvariantCultureIgnoreCase))
-                                {
-                                    MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", (popup + " "), null, "Close");
-                                    seenPopup = true;
-                                }
-                                //if (checkArray[title].Equals("instant", StringComparison.InvariantCultureIgnoreCase))
-                                if (str.Equals("instant", StringComparison.InvariantCultureIgnoreCase))
-                                {
-                                    instant = true;
-                                }
-                                //any other lcd keyword checks go here?
-                            }
-                            title++;
-                        }
-                    }
-                    // this was here for a reason but debug code not using it atm. else { break; }
-                }
-
-                if (serverDestinations.Any() && updatelist.Any())
-                {
-                    var dest = serverDestinations.First(); // Use first valid destination
-                    Target = dest.Address;
-                    Zone = dest.Description;
+                    int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                    Target = nameArray[nameIdx]; // Server address
+                    Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
                     if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                    noZone = false;
                     return true;
                 }
-
-                //destination lcd
-                foreach (var textPanel in updatelist)
-                {
-                    var nameArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
-                    if (nameArray.Length >= 2)
-                    {
-                        int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
-                        Target = nameArray[nameIdx]; // Server address
-                        Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
-                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
-                        return true;
-                    }
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
-                }
-                //if (noZone) { seenPopup = false; instant = false; }
-                if (updatelist2.Count == 0) { noZone = true; seenPopup = false; instant = false; } // Only reset if no [station] LCDs
-                //else { noZone = true; }
-                return false;
-
+                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
             }
-            //no zone is used to detect if we have left the range of any useful lcds
-            //if so reset the option flags to reduce processing and to allow more than one gateway station using 
-            //different options. Nozone check moved into foreach above for debug
-            //if (noZone) { seenPopup = false; instant = false; }
-            //else { noZone = true; }
-            return false;    //we fell through a hole nothing to see here
+
+            // Check interstellar boundaries if no [destination] LCDs found
+            if (!quiet)
+            {
+                double X = position.X; double Y = position.Y; double Z = position.Z;
+                double range = CubeSize / 2; // Half cube size from center
+                double buffer = EdgeBuffer; // Use class-level EdgeBuffer
+
+                // For now, check if beyond range (future: subtract buffer for warnings)
+                if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
+                if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
+                if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
+                if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
+                if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
+                if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
+
+
+                /* old logic remove later once testing passes
+                if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
+                if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
+                if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
+                if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; }
+                if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; }
+                if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; }
+                */
+            }
+
+            //Normal Check [station] LCDs for popup Logic
+            var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
+            var sphere2 = new BoundingSphereD(position, 50); //popup notification lcds scanrange
+            var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
+            string[] stationTags = new string[] { "[station]", "(station)" };
+            // old check string[] LCDTags2 = new string[] { "[station]", "(station)" };
+
+            foreach (var block in LCDlist2) //popup station notification lcds
+            {
+                var textPanel = block as IMyTextPanel;
+                if (textPanel != null
+                    && textPanel.IsFunctional
+                    && textPanel.IsWorking
+                    && stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                {
+                    //noZone = false;  //need to double check what i use this for.
+                    updatelist2.Add(textPanel);
+                }
+            }
+
+            //orignal logic
+            foreach (var textPanel in updatelist2)
+            {
+                //string popup = "";
+                //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //private title removed by keen
+                var checkArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string popup = textPanel.GetText() ?? "";
+                if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
+                {
+                    foreach (var str in checkArray)
+                    {
+                        // if (!seenPopup && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                        if (!seenPopup || textPanel.EntityId != lastStationId)
+                        {
+                            if (str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
+                                seenPopup = true;
+                                lastStationId = textPanel.EntityId; // Track this station
+                            }
+                        }
+                    }
+                }
+                // this was here for a reason but debug code not using it atm. else { break; }
+            }
+
+            // Reset flags if no LCDs or boundaries detected
+            if (updatelist.Count == 0 && updatelist2.Count == 0 && !quiet)
+            {
+                noZone = true;
+                seenPopup = false;
+                lastStationId = 0; // Clear station tracking
+                Zone = "Scanning...";
+                Target = "none";
+            }
+            return false;
         }
 
 
@@ -674,7 +528,7 @@ namespace Lobby.scripts
                 ShowConfigSummary(out reply);
                 return true;
             }
-                        
+
             if (split[0].Equals("/ledit", StringComparison.InvariantCultureIgnoreCase))
             {
                 return SpawnConfigLCD(out reply);
@@ -754,7 +608,7 @@ namespace Lobby.scripts
             else if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase) && split.Length < 2)
             {
                 StopLastPlayedSound(); //Way to reset sound api if needed
-                if (setexits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; }
+                if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; }
                 else { MyAPIGateway.Utilities.ShowMessage("Note:", "No Interstellar Space Detected."); }
                 //var players = new List<IMyPlayer>();
                 //MyAPIGateway.Players.GetPlayers(players, p => p != null);
@@ -762,7 +616,6 @@ namespace Lobby.scripts
                 string reply2 = "";
                 if (seenPopup) { reply2 = "Seen popup: true"; } else { reply2 = "seen popup: false"; }
                 if (noZone) { reply2 += " no zone: true"; } else { reply2 += " no zone: false"; }
-                if (instant) { reply2 += " instant travel: true"; } else { reply2 += " instant travel: false"; }
                 MyAPIGateway.Utilities.ShowMessage("Lobby", reply2);
 
                 /*
@@ -854,7 +707,7 @@ namespace Lobby.scripts
                             helpreply = "Saves your defined interstellar departure point settings/exits\r\n" +
                                 "(after using /ledit) from the spawned LCD text box editor.\r\n" +
                                 "Removes the Spawned LCD after saving the changes.\r\n" +
-                                "This command is only available to admin or space master users.\r\n\r\n"; 
+                                "This command is only available to admin or space master users.\r\n\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /lsave");
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lsave command", helpreply, null, "Close");
                             return true;
@@ -920,15 +773,18 @@ namespace Lobby.scripts
             reply = "";
             StringBuilder summary = new StringBuilder();
 
-            // Header
-            summary.AppendLine("Interstellar Departure Points:");
+            // Config settings
+            summary.AppendLine("Configuration Settings:");
+            summary.AppendLine($"[cubesize] {CubeSize:F0}m (diameter, boundaries at ±{CubeSize / 2:F0}m)");
+            summary.AppendLine($"[edgebuffer] {EdgeBuffer:F0}m");
 
-            // Configured destinations from serverDestinations
+            // Interstellar departure points
+            summary.AppendLine("\nInterstellar Departure Points:");
             if (serverDestinations.Any())
             {
                 foreach (var dest in serverDestinations)
                 {
-                    summary.AppendLine($"[{dest.NetworkName}] {dest.Address} - {dest.Description}");
+                    summary.AppendLine($"{dest.NetworkName} {dest.Address} - {dest.Description}");
                 }
             }
             else
@@ -936,14 +792,15 @@ namespace Lobby.scripts
                 summary.AppendLine("No destinations configured in LobbyDestinations.cfg.");
             }
 
-            // Interstellar boundaries from global variables
+            // Interstellar boundaries
             summary.AppendLine("\nInterstellar Boundaries:");
-            summary.AppendLine($"[GW] Galactic West: {(GW == "0.0.0.0:27270" ? "Not set" : $"{GW} - {GWD} at X={GWP:F0}m")}");
-            summary.AppendLine($"[GE] Galactic East: {(GE == "0.0.0.0:27270" ? "Not set" : $"{GE} - {GED} at X={GEP:F0}m")}");
-            summary.AppendLine($"[GN] Galactic North: {(GN == "0.0.0.0:27270" ? "Not set" : $"{GN} - {GND} at Y={GNP:F0}m")}");
-            summary.AppendLine($"[GS] Galactic South: {(GS == "0.0.0.0:27270" ? "Not set" : $"{GS} - {GSD} at Y={GSP:F0}m")}");
-            summary.AppendLine($"[GU] Galactic Up: {(GU == "0.0.0.0:27270" ? "Not set" : $"{GU} - {GUD} at Z={GUP:F0}m")}");
-            summary.AppendLine($"[GD] Galactic Down: {(GD == "0.0.0.0:27270" ? "Not set" : $"{GD} - {GDD} at Z={GDP:F0}m")}");
+            double range = CubeSize / 2; // Use class-level CubeSize
+            summary.AppendLine($"[GW] Galactic West: {(GW == "0.0.0.0:27270" ? "Not set" : $"{GW} - {GWD} at X={-range:F0}m")}");
+            summary.AppendLine($"[GE] Galactic East: {(GE == "0.0.0.0:27270" ? "Not set" : $"{GE} - {GED} at X={range:F0}m")}");
+            summary.AppendLine($"[GN] Galactic North: {(GN == "0.0.0.0:27270" ? "Not set" : $"{GN} - {GND} at Y={range:F0}m")}");
+            summary.AppendLine($"[GS] Galactic South: {(GS == "0.0.0.0:27270" ? "Not set" : $"{GS} - {GSD} at Y={-range:F0}m")}");
+            summary.AppendLine($"[GU] Galactic Up: {(GU == "0.0.0.0:27270" ? "Not set" : $"{GU} - {GUD} at Z={range:F0}m")}");
+            summary.AppendLine($"[GD] Galactic Down: {(GD == "0.0.0.0:27270" ? "Not set" : $"{GD} - {GDD} at Z={-range:F0}m")}");
 
             // Nearby [station] and [destination] LCDs
             var player = MyAPIGateway.Session.Player;
@@ -1026,9 +883,12 @@ namespace Lobby.scripts
             if (player == null) { reply = "Failed: No player."; return false; }
             var character = player.Character;
             if (character == null) { reply = "Failed: No controlled entity."; return false; }
-            Vector3D position = character.GetPosition() + character.WorldMatrix.Forward * 5;
+
+            // Spawn 2m forward, 1m above eye level            
+            Vector3D position = character.GetPosition() + character.WorldMatrix.Forward * 2 + character.WorldMatrix.Up * 0.5;
             Vector3D forward = -character.WorldMatrix.Forward; // Face towards player
             Vector3D up = character.WorldMatrix.Up;
+
             var gridBuilder = new MyObjectBuilder_CubeGrid()
             {
                 GridSizeEnum = MyCubeSize.Large,
@@ -1057,7 +917,7 @@ namespace Lobby.scripts
                 textPanel.FontSize = 1f;
                 textPanel.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.LEFT;
             }
-            reply = "Config LCD spawned. Interact (F key) to edit, then use /saveconfig.";
+            reply = "Config LCD spawned. Interact (F key) to edit, then use /lsave.";
             return true;
         }
 
@@ -1092,11 +952,11 @@ namespace Lobby.scripts
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
         }
-
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
             var lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
@@ -1104,25 +964,41 @@ namespace Lobby.scripts
                     trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
                 {
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 3)
+                    if (parts.Length >= 2)
                     {
+                        string address = parts[1];
+                        string networkName = parts[0].ToUpper(); // e.g., [GW]
+                        string description = parts.Length > 2 ? string.Join(" ", parts.Skip(2)) : "";
                         serverDestinations.Add(new Destination
                         {
-                            Address = parts[1],
-                            NetworkName = parts[2],
-                            Description = string.Join(" ", parts.Skip(3))
+                            Address = address,
+                            NetworkName = networkName,
+                            Description = description
                         });
                     }
                 }
                 else if (trimmed.StartsWith("[cubesize]"))
                 {
-                    // Handle cubesize (e.g., for setexits)
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    double parsedSize = CubeSize; // Initialize with class-level default
+                    if (parts.Length > 1 && double.TryParse(parts[1], out parsedSize))
+                    {
+                        CubeSize = parsedSize;
+                    }
                 }
                 else if (trimmed.StartsWith("[edgebuffer]"))
                 {
-                    // Handle edgebuffer
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    double parsedBuffer = EdgeBuffer; // Initialize with class-level default
+                    if (parts.Length > 1 && double.TryParse(parts[1], out parsedBuffer))
+                    {
+                        EdgeBuffer = parsedBuffer;
+                    }
                 }
             }
+
+            // Update globals with CubeSize
+            SetExits();
         }
 
 
