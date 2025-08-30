@@ -65,7 +65,7 @@ namespace Lobby.scripts
         bool seenPopup = false; //have we already displayed a popup in this zone?
         public long lastStationId = 0; // Tracks the last station LCD that triggered a popup
         bool noZone = true; //no zone in sight?
-        private bool handlerRegistered = false;
+        //private bool handlerRegistered = false;
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
@@ -115,11 +115,12 @@ namespace Lobby.scripts
         /// </summary>
         public void Init()
         {
-            if (!handlerRegistered)
-            {
-                MyAPIGateway.Utilities.MessageEntered += GotMessage;
-                handlerRegistered = true;
-            }
+            //if (!handlerRegistered)
+            //{
+            MyAPIGateway.Utilities.MessageEntered += GotMessage;
+            //handlerRegistered = true;
+            initDone = true;
+            //}
 
             if (!AmIaDedicated())
             {
@@ -142,18 +143,19 @@ namespace Lobby.scripts
                     SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
+
                 //Do an initial 5 second pre-warmup looking for LCDs
-                initTimer = new Timer(5000); // 5s delay
-                initTimer.Elapsed += (s, e) =>
-                {
-                    ParseConfigText(LoadConfigText()); // Ensure globals are updated
-                    SetExits();
-                    UpdateLobby(false);
-                    initTimer.Stop();
-                };
-                initTimer.AutoReset = false;
-                initTimer.Start();
-                MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
+                //initTimer = new Timer(5000); // 5s delay
+                //initTimer.Elapsed += (s, e) =>
+                //{
+                ParseConfigText(LoadConfigText()); // Ensure globals are updated
+                                                   //SetExits();
+                                                   //UpdateLobby(false);
+                                                   //initTimer.Stop();
+                                                   //};
+                                                   //initTimer.AutoReset = false;
+                                                   //initTimer.Start();
+                                                   //MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
 
                 //Lets let the user know whats up. 
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
@@ -169,16 +171,16 @@ namespace Lobby.scripts
         /// </summary>
         protected override void UnloadData()
         {
-            if (handlerRegistered)
-            {
-                MyAPIGateway.Utilities.MessageEntered -= GotMessage;
-                handlerRegistered = false;
-            }
-            initTimer?.Stop();
+            //if (handlerRegistered)
+            //{
+            MyAPIGateway.Utilities.MessageEntered -= GotMessage;
+            //   handlerRegistered = false;
+            //}
+            //initTimer?.Stop();
             //initTimer?.Dispose();
             StopLastPlayedSound(); // Ensure sound cleanup to avoid memory leaks/sound bugs
-            initDone = false;
-            MyAPIGateway.Entities.OnEntityAdd -= entity => { if (entity is IMyCubeGrid) UpdateLobby(false); }; // Cleanup
+            //initDone = false;
+            //MyAPIGateway.Entities.OnEntityAdd -= entity => { if (entity is IMyCubeGrid) UpdateLobby(false); }; // Cleanup
             base.UnloadData();
 
         }
@@ -194,13 +196,14 @@ namespace Lobby.scripts
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated())
             {
-                if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
+                /*if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
                 {
                     SetExits();
                     ParseConfigText(LoadConfigText());
                     UpdateLobby(false);
                     initDone = true;
                 }
+                */
 
                 //my dirty little timer loop - fires roughly each 15 seconds
                 //it was 2 seconds but that would flood the chat too much with
@@ -211,9 +214,11 @@ namespace Lobby.scripts
                     if (SetExits()) { quiet = false; }  //rechecks in case the lcds didnt load in yet or got added
                     if (UpdateLobby(false))
                     {
-                        string reply = Target == "0.0.0.0:27270"
-                            || Target == "none" ? $"Warning: You have reached the edge of {Zone} Interstellar Space" : $"Departure point: {Zone} [Type /depart to travel]";
-                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Lobby", reply);
+                        string reply = "";
+                        if (Target == "0.0.0.0:27270" || Target == "none")
+                        { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
+                        else { reply = Zone + " [Type /depart to travel]"; }
+                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                     }
                     else
                     {
@@ -262,11 +267,11 @@ namespace Lobby.scripts
         /// 
         private void GotMessage(string messageText, ref bool sendToOthers)
         {
-            string reply;
+            //string reply;
             // here is where we nail the echo back on commands "return" also exits us from processMessage
             // return true supresses echo back, false allows it.
-            if (ProcessMessage(messageText, out reply)) { sendToOthers = false; }
-            if (!string.IsNullOrEmpty(reply)) { MyAPIGateway.Utilities.ShowMessage("Lobby", reply); }
+            if (ProcessMessage(messageText)) { sendToOthers = false; }
+            //if (!string.IsNullOrEmpty(reply)) { MyAPIGateway.Utilities.ShowMessage("Lobby", reply); }
         }
 
 
@@ -328,165 +333,177 @@ namespace Lobby.scripts
             // this might be useful to later reuse for a check that sends a warning to a faction member that an enemy has entered their territory
 
             // ? has been added again but may still need to remove it, if multiplayers mis-trigger popup resets
-            if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity == null)
+            if (MyAPIGateway.Session.Player.Controller.ControlledEntity != null)
             {
-                return false;
-            }
+                //reverted to old logic as adding '?' might cause undesired resets if other players nearby
+                //and loose track if there is only us..  mostly desperation at this point
+                //if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
+                //   return false;
+                // }
 
-            //hard coded target list cause I suck at server side datafiles.. kept for reference only
-            /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
-             if (X >= -100 && X <= -10 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Black Talon Sector"; Target = "59.167.215.81:27016"; return true; }
-             if (X >= -100 && X <= -10 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Spokane Survivalist Sector"; Target = "162.248.94.205:27065"; return true; }
-             if (X >= 10 && X <= 100 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Pandora Sector"; Target = "91.121.145.20:27016"; return true; }
-             if (X >= 10 && X <= 100 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Ah The Final Frontier"; Target = "192.99.150.136:27039"; return true; }
-             else { Zone = "Scanning..."; Target = "none"; return false;  }  */
+                //hard coded target list cause I suck at server side datafiles.. kept for reference only
+                /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
+                 if (X >= -100 && X <= -10 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Black Talon Sector"; Target = "59.167.215.81:27016"; return true; }
+                 if (X >= -100 && X <= -10 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Spokane Survivalist Sector"; Target = "162.248.94.205:27065"; return true; }
+                 if (X >= 10 && X <= 100 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Pandora Sector"; Target = "91.121.145.20:27016"; return true; }
+                 if (X >= 10 && X <= 100 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Ah The Final Frontier"; Target = "192.99.150.136:27039"; return true; }
+                 else { Zone = "Scanning..."; Target = "none"; return false;  }  */
 
-            //look for an lcd customName [destination] then grab the text and extract a server address, network and caption
-            //display the caption in hud, and set the server address to connect to. May also set a network name somehow 
-            //eg. the string/text immediately after the server address which would be cross referenced with configured
-            //known networks in the config file (and the associated passkey when that feature is added) 
-            //long descriptions are pulled using getText from the screen of the LCD or any text added after network name
-            //eg [destination] 14.2.3.1:1234 OGNOrion Orion Pirates Sector
-            //or [destination] 14.2.3.1:1234 OGNOrion    With the "orion pirates sector"  stored on the LCD screen instead.
-            //where both exist - default to the shorter description (most likely the one in customName) for the chat depart pager
+                //look for an lcd customName [destination] then grab the text and extract a server address, network and caption
+                //display the caption in hud, and set the server address to connect to. May also set a network name somehow 
+                //eg. the string/text immediately after the server address which would be cross referenced with configured
+                //known networks in the config file (and the associated passkey when that feature is added) 
+                //long descriptions are pulled using getText from the screen of the LCD or any text added after network name
+                //eg [destination] 14.2.3.1:1234 OGNOrion Orion Pirates Sector
+                //or [destination] 14.2.3.1:1234 OGNOrion    With the "orion pirates sector"  stored on the LCD screen instead.
+                //where both exist - default to the shorter description (most likely the one in customName) for the chat depart pager
 
-            //var players = new List<IMyPlayer>();
-            // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
-            Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
-            var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
-            string[] LCDTags = new string[] { "[destination]", "(destination)" };
-            var sphere = new BoundingSphereD(position, 9); //destination lcds
-            var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                //var players = new List<IMyPlayer>();
+                // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
+                Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
+                var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
+                string[] LCDTags = new string[] { "[destination]", "(destination)" };
+                var sphere = new BoundingSphereD(position, 9); //destination lcds
+                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
 
-            //Debug info
-            if (debug)
-            {
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
-            }
-
-            //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
-            // Collect [destination] LCDs found
-            foreach (var block in LCDlist)
-            {
-                var textPanel = block as IMyTextPanel;
-                if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                //Debug info
+                if (debug)
                 {
-                    updatelist.Add(textPanel);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
                 }
-                //if (debug) { } //debug flag if needed
-            }
 
-            //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
-
-            //Normal Check [station] LCDs for popup Logic
-            var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
-            var sphere2 = new BoundingSphereD(position, 50); //popup notification lcds scanrange
-            var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
-            string[] stationTags = new string[] { "[station]", "(station)" };
-            // old check string[] LCDTags2 = new string[] { "[station]", "(station)" };
-
-            foreach (var block in LCDlist2) //popup station notification lcds
-            {
-                var textPanel = block as IMyTextPanel;
-                if (textPanel != null
-                    && textPanel.IsFunctional
-                    && textPanel.IsWorking
-                    && stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
+                // Collect [destination] LCDs found
+                foreach (var block in LCDlist)
                 {
-                    //noZone = false;  //need to double check what i use this for.
-                    updatelist2.Add(textPanel);
-                }
-            }
-
-            //orignal logic
-            foreach (var textPanel in updatelist2)
-            {
-                //string popup = "";
-                //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //private title removed by keen
-                var checkArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                string popup = textPanel.GetText() ?? "";
-                if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
-                {
-                    foreach (var str in checkArray)
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                     {
-                        // if (!seenPopup && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
-                        if (!seenPopup || textPanel.EntityId != lastStationId)
+                        updatelist.Add(textPanel);
+                    }
+                    //if (debug) { } //debug flag if needed
+                }
+
+                //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
+
+                //Normal Check [station] LCDs for popup Logic
+                var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
+                var sphere2 = new BoundingSphereD(position, 50); //popup notification lcds scanrange
+                var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
+                string[] stationTags = new string[] { "[station]", "(station)" };
+                // old check string[] LCDTags2 = new string[] { "[station]", "(station)" };
+
+                foreach (var block in LCDlist2) //popup station notification lcds
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null
+                        && textPanel.IsFunctional
+                        && textPanel.IsWorking
+                        && stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                    {
+                        //noZone = false;  //need to double check what i use this for.
+                        updatelist2.Add(textPanel);
+                    }
+                }
+
+                //orignal logic
+                foreach (var textPanel in updatelist2)
+                {
+                    //string popup = "";
+                    //   var checkArray = (textPanel.GetPublicTitle() + " " + textPanel.GetPrivateTitle()).Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); //private title removed by keen
+                    var checkArray = textPanel.CustomName.ToString().Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    string popup = textPanel.GetText() ?? "";
+                    if (checkArray.Length >= 1) //if its Not at least 1 its invalid.
+                    {
+                        foreach (var str in checkArray)
                         {
-                            if (str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                            // if (!seenPopup && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                            if (!seenPopup || textPanel.EntityId != lastStationId)
                             {
-                                MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
-                                seenPopup = true;
-                                lastStationId = textPanel.EntityId; // Track this station
+                                if (str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                                {
+                                    MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
+                                    seenPopup = true;
+                                    lastStationId = textPanel.EntityId; // Track this station
+                                }
                             }
                         }
                     }
+                    // this was here for a reason but debug code not using it atm. else { break; }
                 }
-                // this was here for a reason but debug code not using it atm. else { break; }
-            }
 
 
-            // Process [destination] LCDs 
-            foreach (var textPanel in updatelist)
-            {
-                var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
-                if (nameArray.Length >= 2)
+                // Process [destination] LCDs 
+                foreach (var textPanel in updatelist)
                 {
-                    int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
-                    Target = nameArray[nameIdx]; // Server address
-                    Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
-                    noZone = false;
-                    return true;
+                    var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
+                    if (nameArray.Length >= 2)
+                    {
+                        int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                        Target = nameArray[nameIdx]; // Server address
+                        Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
+                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                        noZone = false;
+                        return true;
+                    }
+                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
                 }
-                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
+
+                // Check interstellar boundaries if no [destination] LCDs found
+                // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
+                if (!quiet)
+                {
+                    double X = position.X; double Y = position.Y; double Z = position.Z;
+                    double range = CubeSize / 2; // Half cube size from center
+                    double buffer = EdgeBuffer; // Use class-level EdgeBuffer
+
+                    // For now, check if beyond range (future: subtract buffer for warnings)
+                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
+                    if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
+                    if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
+                    if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
+                    if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
+                    if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
+
+
+                    /* old logic remove later once testing passes
+                    if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
+                    if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
+                    if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
+                    if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; }
+                    if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; }
+                    if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; }
+                    */
+                }
+
+
+                // Reset flags if no LCDs or boundaries detected
+                // checking updatelist.count may be redundant as we would have already returned if there was any exits
+                // only the updatelist2 (station LCDs) really matters here.
+                // checking quiet is not true skips check 
+                if (updatelist.Count == 0 && updatelist2.Count == 0 && !quiet)
+                {
+                    noZone = true;
+                    seenPopup = false;
+                    lastStationId = 0; // Clear station tracking
+                    Zone = "Scanning...";
+                    Target = "none";
+                }
+                //regardless of finding station LCDs or not, return.  If we found exit LCD dest/edge we already returned by now
+                //unless quiet was set (because we already set/showed it)
+                return false;
             }
+            //old logic disable if not needed later - re-added to troubleshoot loss of intro messages
+            //no zone is used to detect if we have left the range of any useful lcds
+            //if so reset the option flags to reduce processing and to allow more than one gateway station using 
+            //different options
+            if (noZone) { seenPopup = false; }
+            else { noZone = true; }
 
-            // Check interstellar boundaries if no [destination] LCDs found
-            // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
-            if (!quiet)
-            {
-                double X = position.X; double Y = position.Y; double Z = position.Z;
-                double range = CubeSize / 2; // Half cube size from center
-                double buffer = EdgeBuffer; // Use class-level EdgeBuffer
-
-                // For now, check if beyond range (future: subtract buffer for warnings)
-                if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
-                if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
-                if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
-                if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
-                if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
-                if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
-
-
-                /* old logic remove later once testing passes
-                if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
-                if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
-                if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
-                if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; }
-                if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; }
-                if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; }
-                */
-            }
-
-            
-            // Reset flags if no LCDs or boundaries detected
-            // checking updatelist.count may be redundant as we would have already returned if there was any exits
-            // only the updatelist2 (station LCDs) really matters here.
-            // checking quiet is not true skips check 
-            if (updatelist.Count == 0 && updatelist2.Count == 0 && !quiet)
-            {
-                noZone = true;
-                seenPopup = false;
-                lastStationId = 0; // Clear station tracking
-                Zone = "Scanning...";
-                Target = "none";
-            }
-            //regardless of finding station LCDs or not, return.  If we found exit LCD dest/edge we already returned by now
-            //unless quiet was set (because we already set/showed it)
+            //fell through a hole
             return false;
         }
-
 
         /// <summary>
         ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
@@ -526,11 +543,11 @@ namespace Lobby.scripts
         /// <summary>
         ///     Checks command line text for commands to process
         /// </summary>
-        private bool ProcessMessage(string messageText, out string reply)
+        private bool ProcessMessage(string messageText) //, out string reply)
         {
-            reply = "";
-            //string[] split = messageText.Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            var split = messageText.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            string reply = "";
+            string[] split = messageText.Split(new Char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            //var split = messageText.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             // nothing useful was entered.
             if (split.Length == 0)
                 return false;
@@ -538,13 +555,18 @@ namespace Lobby.scripts
             #region editconfig
             if (split[0].Equals("/lconfig", StringComparison.InvariantCultureIgnoreCase))
             {
+               // MyAPIGateway.Utilities.ShowMessage("Config", ShowConfigSummary());
                 ShowConfigSummary(out reply);
+                MyAPIGateway.Utilities.ShowMessage("Config", reply);
                 return true;
             }
 
             if (split[0].Equals("/ledit", StringComparison.InvariantCultureIgnoreCase))
             {
-                return SpawnConfigLCD(out reply);
+                //MyAPIGateway.Utilities.ShowMessage("Edit", SpawnConfigLCD());
+                bool result = SpawnConfigLCD(out reply);
+                MyAPIGateway.Utilities.ShowMessage("Edit", reply);
+                return result;
             }
             // ~line 680, in ProcessMessage, replace /saveconfig
             if (split[0].Equals("/lsave", StringComparison.InvariantCultureIgnoreCase))
@@ -562,10 +584,12 @@ namespace Lobby.scripts
                         if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
                         if (grid != null && blocks.Count == 1) { grid.Close(); }
                         reply = "Config saved and LCD despawned.";
+                        MyAPIGateway.Utilities.ShowMessage("Save", reply);
                         return true;
                     }
                 }
                 reply = "No [config] LCD found nearby";
+                MyAPIGateway.Utilities.ShowMessage("Config", reply);
                 return true;
             }
 
@@ -599,8 +623,8 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                string versionreply = "Gateway Lobby 3.53 (initial server side alpha+tiered LCD prioritisation)";
-                MyAPIGateway.Utilities.ShowMessage("VER", versionreply);
+                reply = "Gateway Lobby 3.53 (initial server side alpha+tiered LCD prioritisation)";
+                MyAPIGateway.Utilities.ShowMessage("VER", reply);
                 return true;
             }
             #endregion ver
@@ -613,9 +637,9 @@ namespace Lobby.scripts
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
                 else if (split[1].Equals("init", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    Init(); // Force re-initialization
+                    //Init(); // Force re-initialization (lets not)
                     UpdateLobby(true); // Debug output
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Forced Init for LCD detection");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Forced Update Debug Init");
                 }
             }
             else if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase) && split.Length < 2)
@@ -693,18 +717,18 @@ namespace Lobby.scripts
                 }
                 else
                 {
-                    string helpreply = "";
+                    //string helpreply = "";
                     switch (split[1].ToLowerInvariant())
                     {
                         case "lconfig":
-                            helpreply = "Briefly summarises the map exits and settings.\r\n" +
+                            reply = "Briefly summarises the map exits and settings.\r\n" +
                                 "Also includes any nearby stations or departure LCDs.\r\n" +
                                 "Informational only.\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /lconfig");
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lconfig command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lconfig command", reply, null, "Close");
                             return true;
                         case "ledit":
-                            helpreply = "Spawns a [config] LCD to define interstellar departure points.\r\n" +
+                           reply = "Spawns a [config] LCD to define interstellar departure points.\r\n" +
                                 "Edit LCD text for your desired destination server directions.\r\n(Highlight LCD, pres F)\r\n" +
                                 "Also allows you to set cube size of your map and buffer width of edge.\r\n" +
                                 "Cubesize is how far from middle of map to travel to reach a\r\n " +
@@ -714,58 +738,58 @@ namespace Lobby.scripts
                                 "The LCD is removed once saved.\r\n" +
                                 "This command is only available to admin or space master users.\r\n\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /ledit");
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ledit command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ledit command", reply, null, "Close");
                             return true;
                         case "lsave":
-                            helpreply = "Saves your defined interstellar departure point settings/exits\r\n" +
+                            reply = "Saves your defined interstellar departure point settings/exits\r\n" +
                                 "(after using /ledit) from the spawned LCD text box editor.\r\n" +
                                 "Removes the Spawned LCD after saving the changes.\r\n" +
                                 "This command is only available to admin or space master users.\r\n\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /lsave");
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lsave command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lsave command", reply, null, "Close");
                             return true;
                         case "depart":
-                            helpreply = "Player travels to another server world\r\n" +
+                            reply = "Player travels to another server world\r\n" +
                                 "The world you connect to depends on your location\r\n" +
                                 "and if the server is online or not.\r\nAlternate alias: /jump\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /depart");
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "depart command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "depart command", reply, null, "Close");
                             return true;
                         case "ver":
-                            helpreply = "Simply shows an internal reference version number\r\n";
+                            reply = "Simply shows an internal reference version number\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ver");
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ver command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ver command", reply, null, "Close");
                             return true;
                         case "ltest":
-                            helpreply = "Simple debug tool for testing the mod scanner/sound subs\r\n" +
+                            reply = "Simple debug tool for testing the mod scanner/sound subs\r\n" +
                                 "'sound' test plays the jump sound without jumping.\r\n" +
                                 "no parameter runs a scan test of nearby objects and halts sounds.\r\n" +
                                 "'init' reruns initialisation to debug sync issues.\r\n" +
                                 "Note: some or all of these may be removed or disabled.\r\n" +
                                 "parameters: nothing, sound, init";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ltest or /ltest sound or /ltest init"); //should also be admin only
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "test command", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "test command", reply, null, "Close");
                             return true;
                         case "popup":
-                            helpreply = "Displays a popup message to players when they \r\napproach your ship or station. \r\n" +
+                            reply = "Displays a popup message to players when they \r\napproach your ship or station. \r\n" +
                                         "Name a LCD: [station] popup\r\n" +
                                         "Any message written in the LCD Public Text box (highlight screen press f)\r\nwill be shown in the popup.\r\n";
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "popup", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "popup", reply, null, "Close");
                             return true;
                         case "destination":
-                            helpreply = "Allows you to define a location as a departure \r\npoint to another server/sector. \r\n" +
+                            reply = "Allows you to define a location as a departure \r\npoint to another server/sector. \r\n" +
                                         "Name an LCD [destination] then put the ip:port of \r\n the server followed by a description \r\nin the public title field.\r\n" +
                                         "Example: 221.121.149.13:28790 Lawless void Sector\r\nWhen near this point you type /depart to travel there.";
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "destination", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "destination", reply, null, "Close");
                             return true;
                         case "interstellar":
-                            helpreply = "The boundry of interstellar space in your region. \r\n" +
+                            reply = "The boundry of interstellar space in your region. \r\n" +
                                         "Crossing it players can travel to a server/sector\r\ndefined in that direction.\r\nThis is usually configured by game admin.\r\n" +
                                         "Depending on settings you will need to type /depart \r\nto travel. Boundries are usually \r\naround 1000 Kms from centre of map but may vary by server.\r\nThere can be up to 6 directions defined.\r\n\r\n" +
                                         "If you are a server admin, refer to the workshop page.\r\n" +
                                         "But to summarise imagine the map as a cube, each side\r\n" +
                                         "is a different server you could travel to.";
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", helpreply, null, "Close");
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", reply, null, "Close");
                             return true;
                         default:
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "Unknown option");
