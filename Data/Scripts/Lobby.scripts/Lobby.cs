@@ -62,7 +62,6 @@ namespace Lobby.scripts
     {
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
-        //bool instant = false;  //should it auto-depart or wait of the depart command (disabled at the moment)
         bool seenPopup = false; //have we already displayed a popup in this zone?
         public long lastStationId = 0; // Tracks the last station LCD that triggered a popup
         bool noZone = true; //no zone in sight?
@@ -124,6 +123,12 @@ namespace Lobby.scripts
 
             if (!AmIaDedicated())
             {
+                // Reset popup state on init
+                // probably redundant if we just connected to the map
+                // but a debug can potentially will carry over an invalid state so better to reset it again
+                seenPopup = false;
+                lastStationId = 0;
+
                 //ok lets warm up the hud.. unless of course we are a server.. which would be stupid
                 //no longer using hud to prevent conflicts with other mods
                 /* MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Clear();
@@ -373,49 +378,6 @@ namespace Lobby.scripts
 
             //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
 
-            // Process [destination] LCDs first
-            foreach (var textPanel in updatelist)
-            {
-                var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
-                if (nameArray.Length >= 2)
-                {
-                    int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
-                    Target = nameArray[nameIdx]; // Server address
-                    Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
-                    noZone = false;
-                    return true;
-                }
-                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
-            }
-
-            // Check interstellar boundaries if no [destination] LCDs found
-            if (!quiet)
-            {
-                double X = position.X; double Y = position.Y; double Z = position.Z;
-                double range = CubeSize / 2; // Half cube size from center
-                double buffer = EdgeBuffer; // Use class-level EdgeBuffer
-
-                // For now, check if beyond range (future: subtract buffer for warnings)
-                if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
-                if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
-                if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
-                if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
-                if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
-                if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
-
-
-                /* old logic remove later once testing passes
-                if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
-                if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
-                if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
-                if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; }
-                if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; }
-                if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; }
-                */
-            }
-
             //Normal Check [station] LCDs for popup Logic
             var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
             var sphere2 = new BoundingSphereD(position, 50); //popup notification lcds scanrange
@@ -462,7 +424,56 @@ namespace Lobby.scripts
                 // this was here for a reason but debug code not using it atm. else { break; }
             }
 
+
+            // Process [destination] LCDs 
+            foreach (var textPanel in updatelist)
+            {
+                var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
+                if (nameArray.Length >= 2)
+                {
+                    int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                    Target = nameArray[nameIdx]; // Server address
+                    Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
+                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                    noZone = false;
+                    return true;
+                }
+                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
+            }
+
+            // Check interstellar boundaries if no [destination] LCDs found
+            // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
+            if (!quiet)
+            {
+                double X = position.X; double Y = position.Y; double Z = position.Z;
+                double range = CubeSize / 2; // Half cube size from center
+                double buffer = EdgeBuffer; // Use class-level EdgeBuffer
+
+                // For now, check if beyond range (future: subtract buffer for warnings)
+                if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
+                if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
+                if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
+                if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
+                if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
+                if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
+
+
+                /* old logic remove later once testing passes
+                if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
+                if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
+                if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
+                if (Y >= GNP && Y > X && Y > Z) { Zone = GND; Target = GN; return true; }
+                if (Z <= GDP && Z < X && Z < Y) { Zone = GDD; Target = GD; return true; }
+                if (Z >= GUP && Z > X && Z > Y) { Zone = GUD; Target = GU; return true; }
+                */
+            }
+
+            
             // Reset flags if no LCDs or boundaries detected
+            // checking updatelist.count may be redundant as we would have already returned if there was any exits
+            // only the updatelist2 (station LCDs) really matters here.
+            // checking quiet is not true skips check 
             if (updatelist.Count == 0 && updatelist2.Count == 0 && !quiet)
             {
                 noZone = true;
@@ -471,6 +482,8 @@ namespace Lobby.scripts
                 Zone = "Scanning...";
                 Target = "none";
             }
+            //regardless of finding station LCDs or not, return.  If we found exit LCD dest/edge we already returned by now
+            //unless quiet was set (because we already set/showed it)
             return false;
         }
 
@@ -586,7 +599,7 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                string versionreply = "Gateway Lobby 3.52 (initial server side alpha)";
+                string versionreply = "Gateway Lobby 3.53 (initial server side alpha+tiered LCD prioritisation)";
                 MyAPIGateway.Utilities.ShowMessage("VER", versionreply);
                 return true;
             }
