@@ -43,7 +43,7 @@ reason I created this mod at the beginning.
 a complex backstory, spread out between several linked server worlds to explore as sectors in a
 Galaxy of your chosen "Universe". 
 If you are a big community, this can minimise lag/server slow downs, allow different "sectors"
-to be managed by different admins, or just have a lose federation of server admins working
+to be managed by different admins, or just have a ragtag federation of server admins working
 in a common goal within the same galaxy and/or sci-fi franchise that can travel between each
 others server maps with ease.
 
