@@ -46,6 +46,7 @@ namespace Lobby.scripts
     using Sandbox.Definitions;
     using Sandbox.Game.EntityComponents;
     using VRage.Game.Entity;
+    //using Lobby.scripts.ServerThingy??; //Not sure how to reference this to my LobbyServer namespace..
     using ProtoBuf;
 
     [ProtoContract]
@@ -89,6 +90,7 @@ namespace Lobby.scripts
         public string GUD = "Galactic Up";  // +Z
 
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
+        private const ushort MESSAGE_ID = 12345; // Same ID as server
         private List<Destination> serverDestinations = new List<Destination>();
 
         MyEntity3DSoundEmitter emitter;
@@ -137,6 +139,15 @@ namespace Lobby.scripts
                  MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Add("Scanning..");
                  MyAPIGateway.Utilities.GetObjectiveLine().Show(); */
 
+
+                // Register client network handler
+                MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleMessage);
+
+                // Request config from server
+                MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
+
+                ParseConfigText(LoadConfigText()); // Fallback to local if no server response
+
                 // Check and create default config
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
@@ -148,7 +159,7 @@ namespace Lobby.scripts
                 //initTimer = new Timer(5000); // 5s delay
                 //initTimer.Elapsed += (s, e) =>
                 //{
-                ParseConfigText(LoadConfigText()); // Ensure globals are updated
+               // ParseConfigText(LoadConfigText()); // Ensure globals are updated
                                                    //SetExits();
                                                    //UpdateLobby(false);
                                                    //initTimer.Stop();
@@ -182,7 +193,28 @@ namespace Lobby.scripts
             //initDone = false;
             //MyAPIGateway.Entities.OnEntityAdd -= entity => { if (entity is IMyCubeGrid) UpdateLobby(false); }; // Cleanup
             base.UnloadData();
+            if (!AmIaDedicated())
+            {
+                MyAPIGateway.Multiplayer.UnregisterMessageHandler(MESSAGE_ID, HandleMessage);
+            }
 
+        }
+
+        //Client Handler
+        private void HandleMessage(byte[] data)
+        {
+            string message = Encoding.UTF8.GetString(data);
+            if (message.StartsWith("ConfigData:"))
+            {
+                string text = message.Substring("ConfigData:".Length);
+                ParseConfigText(text);
+                SetExits();
+                UpdateLobby(false);
+            }
+            else if (message == "AccessDenied")
+            {
+                MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+            }
         }
 
         /// <summary>
@@ -571,6 +603,18 @@ namespace Lobby.scripts
             // ~line 680, in ProcessMessage, replace /saveconfig
             if (split[0].Equals("/lsave", StringComparison.InvariantCultureIgnoreCase))
             {
+
+                if (MyAPIGateway.Session.Player == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Failed: No player.");
+                    return false;
+                }
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+                    return false;
+                }
+
                 var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 9);
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
                 foreach (var block in LCDlist)
@@ -578,18 +622,29 @@ namespace Lobby.scripts
                     var textPanel = block as IMyTextPanel;
                     if (textPanel != null && textPanel.CustomName.ToString().IndexOf("[config]", StringComparison.InvariantCultureIgnoreCase) >= 0)
                     {
+                        string text = textPanel.GetText() ?? "";
+                        // Send to server for saving
+                        MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("SaveConfig:" + MyAPIGateway.Session.Player.SteamUserId + ":" + text));
+                        var grid = textPanel.CubeGrid as IMyCubeGrid;
+                        var blocks = new List<IMySlimBlock>();
+                        if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
+                        if (grid != null && blocks.Count == 1) { grid.Close(); }
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Config sent to server for saving.");
+
+                        /* Old Broken? Logic
                         SaveConfigText(textPanel.GetText() ?? "");
                         var grid = textPanel.CubeGrid as IMyCubeGrid;
                         var blocks = new List<IMySlimBlock>();
                         if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
                         if (grid != null && blocks.Count == 1) { grid.Close(); }
                         reply = "Config saved and LCD despawned.";
-                        MyAPIGateway.Utilities.ShowMessage("Save", reply);
+                        MyAPIGateway.Utilities.ShowMessage("Save", reply); */
                         return true;
                     }
                 }
-                reply = "No [config] LCD found nearby";
-                MyAPIGateway.Utilities.ShowMessage("Config", reply);
+                //reply = "No [config] LCD found nearby";
+                //MyAPIGateway.Utilities.ShowMessage("Config", reply);
+                MyAPIGateway.Utilities.ShowMessage("Lobby", "No [config] LCD found nearby.");
                 return true;
             }
 
