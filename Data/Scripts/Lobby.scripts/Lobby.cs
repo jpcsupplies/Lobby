@@ -1144,6 +1144,20 @@ namespace Lobby.scripts
                 {
                     writer.Write(sb.ToString());
                 }
+
+                // Update local state for offline/coop
+                ParseConfigText(sb.ToString());
+                SetExits();
+                UpdateLobby(false);
+
+                // For dedicated server, re-request from server
+                if (MyAPIGateway.Multiplayer != null && MyAPIGateway.Multiplayer.MultiplayerActive && !MyAPIGateway.Utilities.IsDedicated)
+                {
+                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
+                }
+
+
+                /*
                 //UpdateLobby(false);
                 // Re-poll server for updated config (mimics Init)
                 if (!AmIaDedicated())
@@ -1157,7 +1171,7 @@ namespace Lobby.scripts
                     Zone = serverDestinations.Any(d => d.Address != "0.0.0.0:0") ? "Scanning..." : "No interstellar exits defined";
                     Target = "none";
                     UpdateLobby(false); // Server updates locally
-                }
+                } */
             }
             catch (Exception e)
             {
