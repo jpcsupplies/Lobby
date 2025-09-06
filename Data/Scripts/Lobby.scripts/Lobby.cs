@@ -75,12 +75,12 @@ namespace Lobby.scripts
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
 
-        public string GW = "0.0.0.0:27270"; public double GWP = -10000000; //X
-        public string GE = "0.0.0.0:27270"; public double GEP = 10000000; //X
-        public string GS = "0.0.0.0:27270"; public double GSP = -10000000; //Y
-        public string GN = "0.0.0.0:27270"; public double GNP = 10000000; //Y
-        public string GD = "0.0.0.0:27270"; public double GDP = -10000000; //Z
-        public string GU = "0.0.0.0:27270"; public double GUP = 10000000; //Z
+        public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
+        public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
+        public string GS = "0.0.0.0:0"; public double GSP = -10000000; //Y
+        public string GN = "0.0.0.0:0"; public double GNP = 10000000; //Y
+        public string GD = "0.0.0.0:0"; public double GDP = -10000000; //Z
+        public string GU = "0.0.0.0:0"; public double GUP = 10000000; //Z
 
         public string GWD = "Galactic West";  // -X
         public string GED = "Galactic East";  // +X
@@ -119,12 +119,10 @@ namespace Lobby.scripts
         {
             //if (!handlerRegistered)
             //{
-
             MyAPIGateway.Utilities.MessageEntered += GotMessage;
             //handlerRegistered = true;
             initDone = true;
-            //} 
-
+            //}
 
             if (!AmIaDedicated())
             {
@@ -145,7 +143,7 @@ namespace Lobby.scripts
                 // Register client network handler
                 MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleMessage);
 
-                // Request config from server                    
+                // Request config from server
                 MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
 
                 ParseConfigText(LoadConfigText()); // Fallback to local if no server response
@@ -161,24 +159,24 @@ namespace Lobby.scripts
                 //initTimer = new Timer(5000); // 5s delay
                 //initTimer.Elapsed += (s, e) =>
                 //{
-                // ParseConfigText(LoadConfigText()); // Ensure globals are updated
-                //SetExits();
-                //UpdateLobby(false);
-                //initTimer.Stop();
-                //};
-                //initTimer.AutoReset = false;
-                //initTimer.Start();
-                //MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
+               // ParseConfigText(LoadConfigText()); // Ensure globals are updated
+                                                   //SetExits();
+                                                   //UpdateLobby(false);
+                                                   //initTimer.Stop();
+                                                   //};
+                                                   //initTimer.AutoReset = false;
+                                                   //initTimer.Start();
+                                                   //MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
 
                 //Lets let the user know whats up. 
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
                 //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
                 if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; }
                 else { MyAPIGateway.Utilities.ShowMessage("Note", "No Interstellar Space Detected."); }
-
             }
             initDone = true;
         }
+
         /// <summary>
         ///     Attempts to shut things down neatly when game exits.
         /// </summary>
@@ -211,8 +209,6 @@ namespace Lobby.scripts
                 string text = message.Substring("ConfigData:".Length);
                 ParseConfigText(text);
                 SetExits();
-                Zone = serverDestinations.Any(d => d.Address != "0.0.0.0:0") ? "Scanning..." : "No interstellar exits defined";
-                Target = "none";  //make it show the correct message if no exits defined doesnt seem right..
                 UpdateLobby(false);
             }
             else if (message == "AccessDenied")
@@ -222,10 +218,6 @@ namespace Lobby.scripts
             else if (message == "Led itSuccess")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Config LCD spawned by server. Interact (F key) to edit, then use /lsave.");
-            }
-            else if (message == "Led itFailed")
-            {
-                MyAPIGateway.Utilities.ShowMessage("Lobby", "Failed to spawn LCD: Obstruction detected.");
             }
         }
 
@@ -259,7 +251,7 @@ namespace Lobby.scripts
                     if (UpdateLobby(false))
                     {
                         string reply = "";
-                        if (Target == "0.0.0.0:27270" || Target == "none")
+                        if (Target == "0.0.0.0:0" || Target == "none")
                         { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
                         else { reply = Zone + " [Type /depart to travel]"; }
                         if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
@@ -335,21 +327,14 @@ namespace Lobby.scripts
         public bool SetExits()
         {
             // Update globals from serverDestinations (populated by ParseConfigText)
-
-            //Reset globals
             GW = GE = GN = GS = GU = GD = "0.0.0.0:0"; // Reset defaults
-            GEP = GWP = GNP = GSP = GUP = GDP = 0;
-            GED = "Galactic East";
-            GWD = "Galactic West";
-            GND = "Galactic North";
-            GSD = "Galactic South";
-            GUD = "Galactic Up";
-            GDD = "Galactic Down";
+            GWD = "Galactic West"; GED = "Galactic East"; GND = "Galactic North";
+            GSD = "Galactic South"; GUD = "Galactic Up"; GDD = "Galactic Down";
 
-            // double range = CubeSize / 2; // Half for distance from center (e.g., 75,000 km)
-            // GWP = -range; GSP = -range; GDP = -range;
-            // GEP = range; GNP = range; GUP = range;
-            /*
+            double range = CubeSize / 2; // Half for distance from center (e.g., 75,000 km)
+            GWP = -range; GSP = -range; GDP = -range;
+            GEP = range; GNP = range; GUP = range;
+
             foreach (var dest in serverDestinations)
             {
                 switch (dest.NetworkName.ToUpper())
@@ -368,49 +353,8 @@ namespace Lobby.scripts
                         GD = dest.Address; GDD = dest.Description; break;
                 }
             }
-            */
 
-            foreach (var dest in serverDestinations)
-            {
-                if (dest.Address != "0.0.0.0:0") // Only set for valid addresses
-                {
-                    switch (dest.NetworkName)
-                    {
-                        case "[GE]":
-                            GE = dest.Address;
-                            GEP = CubeSize / 2;
-                            GED = dest.Description;
-                            break;
-                        case "[GW]":
-                            GW = dest.Address;
-                            GWP = -CubeSize / 2;
-                            GWD = dest.Description;
-                            break;
-                        case "[GN]":
-                            GN = dest.Address;
-                            GNP = CubeSize / 2;
-                            GND = dest.Description;
-                            break;
-                        case "[GS]":
-                            GS = dest.Address;
-                            GSP = -CubeSize / 2;
-                            GSD = dest.Description;
-                            break;
-                        case "[GU]":
-                            GU = dest.Address;
-                            GUP = CubeSize / 2;
-                            GUD = dest.Description;
-                            break;
-                        case "[GD]":
-                            GD = dest.Address;
-                            GDP = -CubeSize / 2;
-                            GDD = dest.Description;
-                            break;
-                    }
-                }
-            }
-            return serverDestinations.Any(d => d.Address != "0.0.0.0:0");
-            //return serverDestinations.Any(); // True if any destinations are configured
+            return serverDestinations.Any(); // True if any destinations are configured
         }
 
         /// <summary>
@@ -647,7 +591,7 @@ namespace Lobby.scripts
             #region editconfig
             if (split[0].Equals("/lconfig", StringComparison.InvariantCultureIgnoreCase))
             {
-                // MyAPIGateway.Utilities.ShowMessage("Config", ShowConfigSummary());
+               // MyAPIGateway.Utilities.ShowMessage("Config", ShowConfigSummary());
                 ShowConfigSummary(out reply);
                 MyAPIGateway.Utilities.ShowMessage("Config", reply);
                 return true;
@@ -694,27 +638,15 @@ namespace Lobby.scripts
                     if (textPanel != null && textPanel.CustomName.ToString().IndexOf("[config]", StringComparison.InvariantCultureIgnoreCase) >= 0)
                     {
                         string text = textPanel.GetText() ?? "";
-                        // Send to server for saving
-                        MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("SaveConfig:" + MyAPIGateway.Session.Player.SteamUserId + ":" + text));
+                        MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes($"SaveConfig:{MyAPIGateway.Session.Player.SteamUserId}:{text}:{textPanel.CubeGrid.EntityId}"));
                         var grid = textPanel.CubeGrid as IMyCubeGrid;
                         var blocks = new List<IMySlimBlock>();
                         if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
                         if (grid != null && blocks.Count == 1) { grid.Close(); }
                         MyAPIGateway.Utilities.ShowMessage("Lobby", "Config sent to server for saving.");
-
-                        /* Old Broken? Logic
-                        SaveConfigText(textPanel.GetText() ?? "");
-                        var grid = textPanel.CubeGrid as IMyCubeGrid;
-                        var blocks = new List<IMySlimBlock>();
-                        if (grid != null) { grid.GetBlocks(blocks, b => b != null); }
-                        if (grid != null && blocks.Count == 1) { grid.Close(); }
-                        reply = "Config saved and LCD despawned.";
-                        MyAPIGateway.Utilities.ShowMessage("Save", reply); */
                         return true;
                     }
                 }
-                //reply = "No [config] LCD found nearby";
-                //MyAPIGateway.Utilities.ShowMessage("Config", reply);
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "No [config] LCD found nearby.");
                 return true;
             }
@@ -854,15 +786,15 @@ namespace Lobby.scripts
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "lconfig command", reply, null, "Close");
                             return true;
                         case "ledit":
-                            reply = "Spawns a [config] LCD to define interstellar departure points.\r\n" +
-                                 "Edit LCD text for your desired destination server directions.\r\n(Highlight LCD, pres F)\r\n" +
-                                 "Also allows you to set cube size of your map and buffer width of edge.\r\n" +
-                                 "Cubesize is how far from middle of map to travel to reach a\r\n " +
-                                 "departure direction. Buffer is width of border zone that warns\r\n" +
-                                 "you are approached edge of interstellar space.\r\n" +
-                                 "Type /lsave to confirm changes and write it to the server.\r\n" +
-                                 "The LCD is removed once saved.\r\n" +
-                                 "This command is only available to admin or space master users.\r\n\r\n";
+                           reply = "Spawns a [config] LCD to define interstellar departure points.\r\n" +
+                                "Edit LCD text for your desired destination server directions.\r\n(Highlight LCD, pres F)\r\n" +
+                                "Also allows you to set cube size of your map and buffer width of edge.\r\n" +
+                                "Cubesize is how far from middle of map to travel to reach a\r\n " +
+                                "departure direction. Buffer is width of border zone that warns\r\n" +
+                                "you are approached edge of interstellar space.\r\n" +
+                                "Type /lsave to confirm changes and write it to the server.\r\n" +
+                                "The LCD is removed once saved.\r\n" +
+                                "This command is only available to admin or space master users.\r\n\r\n";
                             MyAPIGateway.Utilities.ShowMessage("LHelp", "(Admin only) Example: /ledit");
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ledit command", reply, null, "Close");
                             return true;
@@ -941,7 +873,7 @@ namespace Lobby.scripts
                 SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
-                    // BroadcastConfig(); // Broadcast new default
+                   // BroadcastConfig(); // Broadcast new default
                 }
                 else
                 {
@@ -971,12 +903,12 @@ namespace Lobby.scripts
             // Interstellar boundaries
             summary.AppendLine("\nInterstellar Boundaries:");
             double range = CubeSize / 2; // Use class-level CubeSize
-            summary.AppendLine($"[GW] Galactic West: {(GW == "0.0.0.0:27270" ? "Not set" : $"{GW} - {GWD} at X={-range:F0}m")}");
-            summary.AppendLine($"[GE] Galactic East: {(GE == "0.0.0.0:27270" ? "Not set" : $"{GE} - {GED} at X={range:F0}m")}");
-            summary.AppendLine($"[GN] Galactic North: {(GN == "0.0.0.0:27270" ? "Not set" : $"{GN} - {GND} at Y={range:F0}m")}");
-            summary.AppendLine($"[GS] Galactic South: {(GS == "0.0.0.0:27270" ? "Not set" : $"{GS} - {GSD} at Y={-range:F0}m")}");
-            summary.AppendLine($"[GU] Galactic Up: {(GU == "0.0.0.0:27270" ? "Not set" : $"{GU} - {GUD} at Z={range:F0}m")}");
-            summary.AppendLine($"[GD] Galactic Down: {(GD == "0.0.0.0:27270" ? "Not set" : $"{GD} - {GDD} at Z={-range:F0}m")}");
+            summary.AppendLine($"[GW] Galactic West: {(GW == "0.0.0.0:0" ? "Not set" : $"{GW} - {GWD} at X={-range:F0}m")}");
+            summary.AppendLine($"[GE] Galactic East: {(GE == "0.0.0.0:0" ? "Not set" : $"{GE} - {GED} at X={range:F0}m")}");
+            summary.AppendLine($"[GN] Galactic North: {(GN == "0.0.0.0:0" ? "Not set" : $"{GN} - {GND} at Y={range:F0}m")}");
+            summary.AppendLine($"[GS] Galactic South: {(GS == "0.0.0.0:0" ? "Not set" : $"{GS} - {GSD} at Y={-range:F0}m")}");
+            summary.AppendLine($"[GU] Galactic Up: {(GU == "0.0.0.0:0" ? "Not set" : $"{GU} - {GUD} at Z={range:F0}m")}");
+            summary.AppendLine($"[GD] Galactic Down: {(GD == "0.0.0.0:0" ? "Not set" : $"{GD} - {GDD} at Z={-range:F0}m")}");
 
             // Nearby [station] and [destination] LCDs
             var player = MyAPIGateway.Session.Player;
@@ -1110,89 +1042,36 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                // Default config with valid entries to ensure they show in /ledit
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n" +
-                       "[GE] 0.0.0.0:27270 Galactic East\n" +
-                       "[GW] 0.0.0.0:27270 Galactic West\n" +
-                       "[GN] 0.0.0.0:27270 Galactic North\n" +
-                       "[GS] 0.0.0.0:27270 Galactic South\n" +
-                       "[GU] 0.0.0.0:27270 Galactic Up\n" +
-                       "[GD] 0.0.0.0:27270 Galactic Down";
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
             }
-            catch (Exception e)
-            {
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}");
-                return "";
-            }
+            catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
         }
 
         private void SaveConfigText(string text)
         {
             try
             {
-                // Parse text to update serverDestinations
-                ParseConfigText(text);
-                var sb = new StringBuilder();
-                sb.AppendLine($"[cubesize] {CubeSize}");
-                sb.AppendLine($"[edgebuffer] {EdgeBuffer}");
-                foreach (var dest in serverDestinations)
-                {
-                    sb.AppendLine($"{dest.NetworkName} {dest.Address} {dest.Description}");
-                }
-
                 using (var writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    writer.Write(sb.ToString());
+                    writer.Write(text);
                 }
-
-                // Update local state for offline/coop
-                ParseConfigText(sb.ToString());
-                SetExits();
+                ParseConfigText(text);
                 UpdateLobby(false);
-
-                // For dedicated server, re-request from server
-                if (MyAPIGateway.Multiplayer != null && MyAPIGateway.Multiplayer.MultiplayerActive && !MyAPIGateway.Utilities.IsDedicated)
-                {
-                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
-                }
-
-
-                /*
-                //UpdateLobby(false);
-                // Re-poll server for updated config (mimics Init)
-                if (!AmIaDedicated())
-                {
-                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
-                }
-                else
-                {
-                    ParseConfigText(sb.ToString()); // Local update for server/offline
-                    SetExits();
-                    Zone = serverDestinations.Any(d => d.Address != "0.0.0.0:0") ? "Scanning..." : "No interstellar exits defined";
-                    Target = "none";
-                    UpdateLobby(false); // Server updates locally
-                } */
             }
-            catch (Exception e)
-            {
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}");
-            }
+            catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
         }
-
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
             var lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-            /*
-             foreach (var line in lines)
+            foreach (var line in lines)
             {
                 var trimmed = line.Trim();
                 if (trimmed.StartsWith("[GE]") || trimmed.StartsWith("[GW]") || trimmed.StartsWith("[GN]") ||
                     trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
                 {
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
                     if (parts.Length >= 2)
                     {
                         string address = parts[1];
@@ -1223,45 +1102,6 @@ namespace Lobby.scripts
                     {
                         EdgeBuffer = parsedBuffer;
                     }
-                } 
-            } */
-
-
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("[GE]") || trimmed.StartsWith("[GW]") || trimmed.StartsWith("[GN]") ||
-                    trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
-                {
-                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    string address = parts.Length >= 2 ? parts[1] : "0.0.0.0:0";
-                    string networkName = parts[0].ToUpper(); // e.g., [GN]
-                    string description = parts.Length > 2 ? string.Join(" ", parts.Skip(2)) : GetDefaultDescription(networkName);
-
-                    serverDestinations.Add(new Destination
-                    {
-                        Address = address,
-                        NetworkName = networkName,
-                        Description = description
-                    });
-                }
-                else if (trimmed.StartsWith("[cubesize]"))
-                {
-                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    double parsedSize = CubeSize; // Initialize with class-level default
-                    if (parts.Length > 1 && double.TryParse(parts[1], out parsedSize))
-                    {
-                        CubeSize = parsedSize;
-                    }
-                }
-                else if (trimmed.StartsWith("[edgebuffer]"))
-                {
-                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    double parsedBuffer = EdgeBuffer; // Initialize with class-level default
-                    if (parts.Length > 1 && double.TryParse(parts[1], out parsedBuffer))
-                    {
-                        EdgeBuffer = parsedBuffer;
-                    }
                 }
             }
 
@@ -1269,20 +1109,6 @@ namespace Lobby.scripts
             SetExits();
         }
 
-        // Helper method for default descriptions
-        private string GetDefaultDescription(string networkName)
-        {
-            switch (networkName)
-            {
-                case "[GE]": return "Galactic East";
-                case "[GW]": return "Galactic West";
-                case "[GN]": return "Galactic North";
-                case "[GS]": return "Galactic South";
-                case "[GU]": return "Galactic Up";
-                case "[GD]": return "Galactic Down";
-                default: return "";
-            }
-        }
 
     }
 }

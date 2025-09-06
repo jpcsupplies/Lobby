@@ -2,39 +2,38 @@ namespace Lobby.scripts
 {
     using System;
     using System.Text;
-    using System.Collections.Generic; // For List<>
+    using System.Collections.Generic;
     using Sandbox.ModAPI;
     using VRage.Game.ModAPI;
-    using VRageMath; // For Vector3D
-    using VRage.ObjectBuilders; // For MyObjectBuilder_CubeGrid, MyPositionAndOrientation
-    using Sandbox.Common.ObjectBuilders; // For MyObjectBuilder_TextPanel, MyObjectBuilder_CubeBlock
-    using VRage.Game; // For MyCubeSize, MyPersistentEntityFlags2
-    using VRage.Game.Components; // For MySessionComponentDescriptor
+    using VRageMath;
+    using VRage.ObjectBuilders;
+    using Sandbox.Common.ObjectBuilders;
+    using VRage.Game;
+    using VRage.Game.Components;
     using ProtoBuf;
-    using Sandbox.Game.Entities; // For IMyCubeGrid, IMyTextPanel
-    using VRage.Game.Entity; // For GetCubeBlock
+    using Sandbox.Game.Entities;
+    using VRage.Game.Entity;
+    using System.Linq; // Added for Skip
+    using VRage.ModAPI; // Added for IMyEntity
 
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class LobbyServer : MySessionComponentBase
     {
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
-        private const ushort MESSAGE_ID = 12345; // Unique ID for network messages
+        private const ushort MESSAGE_ID = 12345;
 
         public override void BeforeStart()
         {
             if (!MyAPIGateway.Multiplayer.IsServer)
                 return;
 
-            // Register network handler on server
             MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleMessage);
 
-            // Check and create default config on server
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
             {
                 SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
             }
 
-            // Broadcast config to all connected clients on server start
             BroadcastConfig();
         }
 
@@ -50,22 +49,34 @@ namespace Lobby.scripts
             string message = Encoding.UTF8.GetString(data);
             if (message.StartsWith("RequestConfig"))
             {
-                // Client requests config, send it
                 string configText = LoadConfigText();
-                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText), ulong.Parse(message.Split(':')[1])); // Send to requesting client SteamID
+                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText), ulong.Parse(message.Split(':')[1]));
             }
             else if (message.StartsWith("SaveConfig:"))
             {
-                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                var parts = message.Split(':');
+                if (parts.Length < 3)
+                    return;
+                ulong steamId = ulong.Parse(parts[1]);
                 if (MyAPIGateway.Session.GetUserPromoteLevel(steamId) < MyPromoteLevel.SpaceMaster)
                 {
                     MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("AccessDenied"), steamId);
                     return;
                 }
 
-                string text = message.Split(':')[2];
+                // Reconstruct text by joining all parts except SteamId and EntityId
+                string text = string.Join(":", parts, 2, parts.Length - 3); // From index 2 to before EntityId
+                long entityId = parts.Length > 3 ? long.Parse(parts[parts.Length - 1]) : 0;
                 SaveConfigText(text);
-                BroadcastConfig(); // Broadcast updated config to all clients
+                if (entityId != 0)
+                {
+                    IMyEntity grid = MyAPIGateway.Entities.GetEntityById(entityId);
+                    if (grid != null && grid is IMyCubeGrid)
+                    {
+                        grid.Close();
+                    }
+                }
+                BroadcastConfig();
             }
             else if (message.StartsWith("RequestLed it:"))
             {
@@ -76,7 +87,6 @@ namespace Lobby.scripts
                     return;
                 }
 
-                // Server spawns LCD
                 IMyPlayer player = null;
                 var players = new List<IMyPlayer>();
                 MyAPIGateway.Players.GetPlayers(players, p => p != null && p.SteamUserId == steamId);
@@ -117,7 +127,7 @@ namespace Lobby.scripts
                     }
                 };
                 var spawnedGrid = MyAPIGateway.Entities.CreateFromObjectBuilderAndAdd(gridBuilder) as IMyCubeGrid;
-                if (spawnedGrid == null) 
+                if (spawnedGrid == null)
                 {
                     MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("Led itFailed"), steamId);
                     return;
@@ -133,7 +143,6 @@ namespace Lobby.scripts
                     textPanel.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.LEFT;
                 }
 
-                // Notify client
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("Led itSuccess"), steamId);
             }
         }
