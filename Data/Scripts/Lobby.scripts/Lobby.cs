@@ -70,7 +70,7 @@ namespace Lobby.scripts
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
-        public string Zone = "Scanning...";  //placeholder for description of target server
+        public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
@@ -121,7 +121,7 @@ namespace Lobby.scripts
             //{
             MyAPIGateway.Utilities.MessageEntered += GotMessage;
             //handlerRegistered = true;
-            initDone = true;
+            //initDone = true;
             //}
 
             if (!AmIaDedicated())
@@ -154,25 +154,31 @@ namespace Lobby.scripts
                     SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
-
-                //Do an initial 5 second pre-warmup looking for LCDs
-                //initTimer = new Timer(5000); // 5s delay
-                //initTimer.Elapsed += (s, e) =>
-                //{
-                // ParseConfigText(LoadConfigText()); // Ensure globals are updated
-                //SetExits();
-                //UpdateLobby(false);
-                //initTimer.Stop();
-                //};
-                //initTimer.AutoReset = false;
-                //initTimer.Start();
-                //MyAPIGateway.Entities.OnEntityAdd += entity => { if (entity is IMyCubeGrid) UpdateLobby(false); };
-
                 //Lets let the user know whats up. 
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
                 //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
-                if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Boundry Detected."); quiet = false; }
-                else { MyAPIGateway.Utilities.ShowMessage("Note", "No Interstellar Space Detected."); }
+
+                //Do an initial 5 second pre-warmup waiting on data from server
+                initTimer = new Timer(5000); // 5s delay
+                initTimer.Elapsed += (s, e) =>
+                {
+                    // ParseConfigText(LoadConfigText()); // Ensure globals are updated
+                    //SetExits();
+                    //UpdateLobby(false);
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: This is the 5 second delay.");
+                    if (SetExits() && !quiet) { MyAPIGateway.Utilities.ShowMessage("Scan", "Interstellar Space Path(s) Found!"); quiet = false; }
+                    else { MyAPIGateway.Utilities.ShowMessage("Scan", "No Interstellar Space Detected."); }
+                    initTimer.Stop();
+                };
+                initTimer.AutoReset = false;
+                initTimer.Start();
+
+                MyAPIGateway.Utilities.ShowMessage("", "Scan For Interstellar Space Paths..");
+                if (SetExits()) { } //silently do a prescan
+                //    MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Exit(s) Detected!");
+                //   quiet = false;
+                // }
+                //else { MyAPIGateway.Utilities.ShowMessage("Note", "Scanning for paths through Interstellar Space.."); }
             }
             initDone = true;
         }
@@ -209,9 +215,18 @@ namespace Lobby.scripts
                 string configText = message.Substring("ConfigData:".Length);
                 ParseConfigText(configText);
                 SetExits();
-                Zone = serverDestinations.Any(d => d.Address != "0.0.0.0:0") ? "Scanning..." : "No interstellar exits defined";
+                //converted to more arcane readable check for troubleshooting 
+                //Zone = serverDestinations.Any(d => d.Address != "0.0.0.0:0") ? "Scanning..." : "No interstellar exits defined";
+                if (serverDestinations.Any(d => d.Address != "0.0.0.0:0"))
+                {
+                    Zone = "Scanning...";
+                }
+                else
+                {
+                    Zone = "No interstellar exits defined";
+                }
                 Target = "none";
-                UpdateLobby(false);
+                UpdateLobby(false);              
             }
             else if (message == "AccessDenied")
             {
@@ -232,6 +247,7 @@ namespace Lobby.scripts
         /// </summary>
         public override void UpdateAfterSimulation()
         {
+
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 Init();
 
@@ -357,7 +373,16 @@ namespace Lobby.scripts
                 }
             }
             bool hasExits = serverDestinations.Any(d => d.Address != "0.0.0.0:0");
-            Zone = hasExits ? "Scanning..." : "No interstellar exits defined";
+            //expanded for readability
+            //Zone = hasExits ? "Scanning..." : "No interstellar exits defined"; 
+            if (hasExits)
+            {
+                Zone = "Scanning...";
+            }
+            else
+            {
+                Zone = "No interstellar exits defined";
+            }
             return hasExits;
             // return serverDestinations.Any(); // True if any destinations are configured
         }
@@ -369,6 +394,7 @@ namespace Lobby.scripts
         /// </summary>
         public bool UpdateLobby(bool debug = false)
         {
+
             //check our position - are we in a hot spot?
             // remove ? so only current player not all players trigger. if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
             // this might be useful to later reuse for a check that sends a warning to a faction member that an enemy has entered their territory
