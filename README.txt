@@ -116,10 +116,7 @@ message to visitors of your ship or space station!
 ******************************
 * Interstellar Space Boundry *
 ******************************
-Note: This feature is a little buggy at the moment, and might only work on in-game hosted map
-coop and offline mode. We are currently working towards making it stable on dedicated servers too.
-It is suggested you do not use this features until we update the code here to reliably work on
-server side config files.
+Note: This feature is a little buggy at the moment, but should work.
 
 You can Set World "boundries" so that if a player flies off the edge of the allowed world - they 
 enter "interstellar space" (the empty void between "sectors" (servers)) and can travel to whatever 
@@ -209,6 +206,86 @@ Other options may be added later, such as passcodes or options related to ship t
 too but the above are the most important options.
 
 -
+
+****************************
+Other Configuration options
+****************************
+The /Ledit command has additional options a server admin can change although many
+are still placeholders and will be ignored:
+
+[AllowDestinationLCD] true / false
+Should Destination LCDs be allowed to work.  Default true.
+Configures if players on servers can create their own destination LCDs
+If this is set to false all [destination] LCDs will be ignored.
+
+[AllowStationPopupLCD] true /false
+Should station/ship popup greeting LCDs be allowed? Default true.
+Configures if "[station] popup" will work or not. false means they are ignored.
+
+[NetworkName]    
+Currently a placeholder for future features.
+This is the optional name of your shared universe.
+Example: You have three different servers which are connected using interstellar boundries
+or departure LCD's. To share things all three servers would need to be the same Network.  
+Eg. Orion
+If omitted, it is assumed your Network is "Anarchy"  which means you can carry things
+between any uncontrolled network of servers running this mod. (Exciting.. or scary?)
+If set the mod may warn before attempting to travel to a different network name that 
+things may not carry over as expected, or will remain on the server you are departing.
+(Note to self: May require server map settings to NOT be creative, or only allow ships 
+from creative servers to travel TO creative servers.   Survival <-> Creative travel
+should probably not be allowed even on Anarchy servers.)
+
+[ServerPasscode]
+Currently a placeholder for future features. Default is no passcode.
+This is the optional passcode to Authenticate information carried between same network 
+servers by a player travelling between them.   All servers would need to share this
+code and it is not available to normal players only admins as it is only recorded server
+side.   /Ledit may only allow "sending" this code, one way.  It might not show in
+/Lconfig.    
+(Note to self: if a passcode is specified but no network, ships may be kept in storage
+and not spawned unless joining an Anarchy server using the same passcode.
+Information will only be allowed between servers sharing the same, or sharing no
+passcode.  Additional logic allowing players to opt to allow their ship to travel but
+one way only to no passcode servers, or departing a server and specifying a passcode 
+when they leave to allow it to travel too (ie the entry 
+
+[AllowStationClaimLCD] true / false
+Currently a placeholder for future features. Default true.
+This is an option that configures if players can use "[station] claim" LCDs
+This configures if a player regardless of if they are in a faction or not can claim a 
+region of space as their own personal territory.
+Positive actions here may increase inter-faction/player reputation.
+Negative actions here may decrease inter-faction/player reputation.
+
+[AllowStationFactionLCD] true / false
+Currently a placeholder for future features. Default true.
+This is an option that configures if factions can use "[station] faction" LCDs
+This configures if a player can claim territory as belonging to their faction.
+Positive actions here may increase inter-faction/player reputation.
+Negative actions here may decrease inter-faction/player reputation.
+
+[AllowStationTollLCD] true / false
+Currently a placeholder for future features. Default true.
+This is an option that configures if "[station] toll" LCD's are allowed.
+This configures if tolls can be charged to allow players to enter claimed space.
+toll size may vary depending on reputation of current player/faction to the 
+player/faction claiming the territory.     Tolls will likely be placed in a
+[vault] cargo crate; or failing that the factions economy bank balance.
+Directly paying a player the toll will likely not be allowed except in
+very specific scenarios.  Vaults are more immersive to gameplay since potentially
+it allows heists.. and a condition (damage/grinding to [vault] container) that
+can be checked for triggering severe negative reputation changes.
+Direct Faction payments (or at least a 50:50 split between vault and faction)
+may be allowed if the faction has more than 3 members?
+
+Other options may be added later such as:
+Travel options: Allow Ship, Allow Inventory, Allow Faction, Allow Buffs, 
+Allow bank balance.
+General options: Enable Visuals, Enable lottery etc. depending what features we 
+can get working.
+(Note to self: lottery is just a random money giveaway from ticket sales and travel/claim/toll 
+creation fees?)
 
 *******
 *Notes*
