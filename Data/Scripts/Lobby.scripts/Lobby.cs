@@ -74,6 +74,7 @@ namespace Lobby.scripts
         public string Target = "none"; //placeholder for server address of target server
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
+        public string ServerPasscode = ""; // New field for passcode
 
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
@@ -151,7 +152,7 @@ namespace Lobby.scripts
                 // Check and create default config
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
                 //Lets let the user know whats up. 
@@ -166,7 +167,9 @@ namespace Lobby.scripts
                     //SetExits();
                     //UpdateLobby(false);
                     //MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: This is the 5 second delay.");
-                    if (SetExits() && !quiet) { MyAPIGateway.Utilities.ShowMessage("Scan", "Interstellar Space Path(s) Found!"); quiet = false; }
+                    //removing the "&& !quiet  from below if"  logically init should only run once except under old
+                    //debug logic 
+                    if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Scan", "Interstellar Space Path(s) Found!"); quiet = false; }
                     else { MyAPIGateway.Utilities.ShowMessage("Scan", "No Interstellar Space Detected."); }
                     initTimer.Stop();
                 };
@@ -377,13 +380,17 @@ namespace Lobby.scripts
             //Zone = hasExits ? "Scanning..." : "No interstellar exits defined"; 
             if (hasExits)
             {
-                Zone = "Scanning...";
+                Zone = "Scanning..."; //old hud logic
+                //MyAPIGateway.Utilities.ShowMessage("Debug:", "Has exits!");
+                return true;
             }
             else
             {
-                Zone = "No interstellar exits defined";
+                Zone = "No interstellar exits defined";  
+                //MyAPIGateway.Utilities.ShowMessage("Debug:", "Didn't see exits?");
+                return false;
             }
-            return hasExits;
+            //return hasExits; supposed to return true but odd things happened
             // return serverDestinations.Any(); // True if any destinations are configured
         }
 
@@ -901,7 +908,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
             {
-                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     // BroadcastConfig(); // Broadcast new default
@@ -1073,7 +1080,7 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
         }
@@ -1104,15 +1111,19 @@ namespace Lobby.scripts
                 {
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-                    string address = parts.Length >= 2 ? parts[1] : "0.0.0.0:0";
-                    string networkName = parts[0].ToUpper();
-                    string description = parts.Length > 2 ? string.Join(" ", parts.Skip(2)) : GetDefaultDescription(networkName);
-                    serverDestinations.Add(new Destination
+                    if (parts.Length >= 2 && parts[1] != "0.0.0.0:0") // Skip if no valid address
                     {
-                        Address = address,
-                        NetworkName = networkName,
-                        Description = description
-                    });
+                        string address = parts[1];
+                        string networkName = parts[0].ToUpper();
+                        string description = parts.Length > 2 ? string.Join(" ", parts.Skip(2)) : GetDefaultDescription(networkName);
+                        serverDestinations.Add(new Destination
+                        {
+                            Address = address,
+                            NetworkName = networkName,
+                            Description = description
+                        });
+                        // debug MyAPIGateway.Utilities.ShowMessage("Lobby", $"Added destination: {networkName} {address} - {description}");
+                    }
                 }
                 else if (trimmed.StartsWith("[cubesize]"))
                 {
@@ -1130,6 +1141,18 @@ namespace Lobby.scripts
                     if (parts.Length > 1 && double.TryParse(parts[1], out parsedBuffer))
                     {
                         EdgeBuffer = parsedBuffer;
+                    }
+                }
+                else if (trimmed.StartsWith("[ServerPasscode]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 1)
+                    {
+                        ServerPasscode = parts[1];
+                    }
+                    else
+                    {
+                        ServerPasscode = "";
                     }
                 }
             }

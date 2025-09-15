@@ -31,7 +31,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
             {
-                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
             }
 
             BroadcastConfig();
@@ -50,6 +50,20 @@ namespace Lobby.scripts
             if (message.StartsWith("RequestConfig"))
             {
                 string configText = LoadConfigText();
+                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
+                if (!isAdmin)
+                {
+                    var lines = configText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    configText = "";
+                    foreach (var line in lines)
+                    {
+                        if (!line.StartsWith("[ServerPasscode]"))
+                        {
+                            configText += line + "\n";
+                        }
+                    }
+                }
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText), ulong.Parse(message.Split(':')[1]));
             }
             else if (message.StartsWith("SaveConfig:"))
@@ -158,7 +172,7 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
             }
             catch { return ""; }
         }
@@ -178,6 +192,15 @@ namespace Lobby.scripts
         private void BroadcastConfig()
         {
             string configText = LoadConfigText();
+            var lines = configText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            configText = "";
+            foreach (var line in lines)
+            {
+                if (!line.StartsWith("[ServerPasscode]"))
+                {
+                    configText += line + "\n";
+                }
+            }
             MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText));
         }
     }
