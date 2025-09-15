@@ -75,6 +75,12 @@ namespace Lobby.scripts
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
         public string ServerPasscode = ""; // New field for passcode
+        public string NetworkName = ""; // Placeholder for server group name
+        public bool AllowDestinationLCD = true; // Placeholder for destination LCDs
+        public bool AllowStationPopupLCD = true; // Placeholder for station popup LCDs
+        public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
+        public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
+        public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
 
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
@@ -152,7 +158,7 @@ namespace Lobby.scripts
                 // Check and create default config
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
                 //Lets let the user know whats up. 
@@ -908,7 +914,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
             {
-                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     // BroadcastConfig(); // Broadcast new default
@@ -1080,7 +1086,7 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n[ServerPasscode]\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
         }
@@ -1143,6 +1149,18 @@ namespace Lobby.scripts
                         EdgeBuffer = parsedBuffer;
                     }
                 }
+                else if (trimmed.StartsWith("[NetworkName]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 1)
+                    {
+                        NetworkName = string.Join(" ", parts.Skip(1)); // Allow spaces in NetworkName
+                    }
+                    else
+                    {
+                        NetworkName = "";
+                    }
+                }
                 else if (trimmed.StartsWith("[ServerPasscode]"))
                 {
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1153,6 +1171,51 @@ namespace Lobby.scripts
                     else
                     {
                         ServerPasscode = "";
+                    }
+                }
+                else if (trimmed.StartsWith("[AllowDestinationLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowDestinationLCD = true; // Initialize default
+                    if (parts.Length > 1)
+                    {
+                        bool.TryParse(parts[1], out AllowDestinationLCD);
+                    }                    
+                }
+                else if (trimmed.StartsWith("[AllowStationPopupLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowStationPopupLCD = true; // Initialize default
+                    if (parts.Length > 1)
+                    {
+                        bool.TryParse(parts[1], out AllowStationPopupLCD);
+                    }                   
+                }
+                else if (trimmed.StartsWith("[AllowStationClaimLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowStationClaimLCD = true; // Initialize default
+                    if (parts.Length > 1)
+                    {
+                        bool.TryParse(parts[1], out AllowStationClaimLCD);
+                    }
+                }
+                else if (trimmed.StartsWith("[AllowStationFactionLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowStationFactionLCD = true; // Initialize default
+                    if (parts.Length > 1)
+                    {
+                        bool.TryParse(parts[1], out AllowStationFactionLCD);
+                    }
+                }
+                else if (trimmed.StartsWith("[AllowStationTollLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowStationTollLCD = true; // Initialize default
+                    if (parts.Length > 1)
+                    {
+                        bool.TryParse(parts[1], out AllowStationTollLCD);
                     }
                 }
             }
