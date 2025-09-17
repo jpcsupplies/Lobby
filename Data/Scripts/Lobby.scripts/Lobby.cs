@@ -235,7 +235,7 @@ namespace Lobby.scripts
                     Zone = "No interstellar exits defined";
                 }
                 Target = "none";
-                UpdateLobby(false);              
+                UpdateLobby(false);
             }
             else if (message == "AccessDenied")
             {
@@ -392,7 +392,7 @@ namespace Lobby.scripts
             }
             else
             {
-                Zone = "No interstellar exits defined";  
+                Zone = "No interstellar exits defined";
                 //MyAPIGateway.Utilities.ShowMessage("Debug:", "Didn't see exits?");
                 return false;
             }
@@ -453,17 +453,19 @@ namespace Lobby.scripts
                 }
 
                 //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
-                // Collect [destination] LCDs found
-                foreach (var block in LCDlist)
-                {
-                    var textPanel = block as IMyTextPanel;
-                    if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                
+                
+                    // Collect [destination] LCDs found
+                    foreach (var block in LCDlist)
                     {
-                        updatelist.Add(textPanel);
+                        var textPanel = block as IMyTextPanel;
+                        if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
+                        {
+                            updatelist.Add(textPanel);
+                        }
+                        //if (debug) { } //debug flag if needed
                     }
-                    //if (debug) { } //debug flag if needed
-                }
-
+                
                 //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
 
                 //Normal Check [station] LCDs for popup Logic
@@ -486,7 +488,7 @@ namespace Lobby.scripts
                     }
                 }
 
-                //orignal logic
+                //orignal [station] logic  this is where things like popup or claim or whatever lcd based tags are checked for
                 foreach (var textPanel in updatelist2)
                 {
                     //string popup = "";
@@ -498,9 +500,11 @@ namespace Lobby.scripts
                         foreach (var str in checkArray)
                         {
                             // if (!seenPopup && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                            //check that we have not already seen a popup
                             if (!seenPopup || textPanel.EntityId != lastStationId)
                             {
-                                if (str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                                //if this is a popup lcd and popups are enabled show the message
+                                if (AllowStationPopupLCD && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 {
                                     MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
                                     seenPopup = true;
@@ -513,23 +517,25 @@ namespace Lobby.scripts
                 }
 
 
-                // Process [destination] LCDs 
-                foreach (var textPanel in updatelist)
+                // Process [destination] LCDs if allowed
+                if (AllowDestinationLCD)
                 {
-                    var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
-                    if (nameArray.Length >= 2)
+                    foreach (var textPanel in updatelist)
                     {
-                        int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
-                        Target = nameArray[nameIdx]; // Server address
-                        Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
-                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
-                        noZone = false;
-                        return true;
+                        var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
+                        if (nameArray.Length >= 2)
+                        {
+                            int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                            Target = nameArray[nameIdx]; // Server address
+                            Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
+                            if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                            noZone = false;
+                            return true;
+                        }
+                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
                     }
-                    if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
                 }
-
                 // Check interstellar boundaries if no [destination] LCDs found
                 // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
                 if (!quiet)
@@ -725,7 +731,7 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                reply = "Gateway Lobby 3.53 (initial server side alpha+tiered LCD prioritisation)";
+                reply = "Gateway Lobby 3.4 (server side settings)";
                 MyAPIGateway.Utilities.ShowMessage("VER", reply);
                 return true;
             }
@@ -927,11 +933,17 @@ namespace Lobby.scripts
 
             // Config settings
             summary.AppendLine("Configuration Settings:");
-            summary.AppendLine($"[cubesize] {CubeSize:F0}m (diameter, boundaries at ±{CubeSize / 2:F0}m)");
-            summary.AppendLine($"[edgebuffer] {EdgeBuffer:F0}m");
+            summary.AppendLine($"[NetworkName] {NetworkName}");
+            summary.AppendLine($"[AllowDestinationLCD] {AllowDestinationLCD}");
+            summary.AppendLine($"[AllowStationPopupLCD] {AllowStationPopupLCD}");
+            summary.AppendLine($"[AllowStationClaimLCD] {AllowStationClaimLCD} (Placeholder)");
+            summary.AppendLine($"[AllowStationFactionLCD] {AllowStationFactionLCD} (Placeholder)");
+            summary.AppendLine($"[AllowStationTollLCD] {AllowStationTollLCD} (Placeholder)");
 
             // Interstellar departure points
             summary.AppendLine("\nInterstellar Departure Points:");
+            summary.AppendLine($"[cubesize] {CubeSize:F0}m (diameter, boundaries at ±{CubeSize / 2:F0}m)");
+            summary.AppendLine($"[edgebuffer] {EdgeBuffer:F0}m");
             if (serverDestinations.Any())
             {
                 foreach (var dest in serverDestinations)
@@ -1180,7 +1192,7 @@ namespace Lobby.scripts
                     if (parts.Length > 1)
                     {
                         bool.TryParse(parts[1], out AllowDestinationLCD);
-                    }                    
+                    }
                 }
                 else if (trimmed.StartsWith("[AllowStationPopupLCD]"))
                 {
@@ -1189,7 +1201,7 @@ namespace Lobby.scripts
                     if (parts.Length > 1)
                     {
                         bool.TryParse(parts[1], out AllowStationPopupLCD);
-                    }                   
+                    }
                 }
                 else if (trimmed.StartsWith("[AllowStationClaimLCD]"))
                 {
