@@ -98,6 +98,7 @@ namespace Lobby.scripts
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
 
+        private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
         private List<Destination> serverDestinations = new List<Destination>();
@@ -217,6 +218,28 @@ namespace Lobby.scripts
 
         }
 
+
+        private bool LCDOwnedByAdmin(IMyTextPanel textPanel)
+        {
+            if (textPanel == null)
+                return false;
+
+            var grid = textPanel.CubeGrid as IMyCubeGrid;
+            if (grid == null || grid.BigOwners.Count == 0)
+                return false;
+
+            long ownerId = grid.BigOwners[0];
+            if (adminCache.ContainsKey(ownerId))
+            {
+                return adminCache[ownerId];
+            }
+
+            // Request admin status from server
+            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes($"IsAdmin:{ownerId}"));
+            return false; // Return false until response received
+        }
+
+
         //Client Handler
         private void HandleMessage(byte[] data)
         {
@@ -250,6 +273,13 @@ namespace Lobby.scripts
             else if (message == "Led itFailed")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Failed to spawn config LCD.");
+            }
+            else if (message.StartsWith("AdminStatus:"))
+            {
+                var parts = message.Split(':');
+                long ownerId = long.Parse(parts[1]);
+                bool isAdmin = bool.Parse(parts[2]);
+                adminCache[ownerId] = isAdmin;
             }
         }
 
@@ -506,7 +536,7 @@ namespace Lobby.scripts
                             if (!seenPopup || textPanel.EntityId != lastStationId)
                             {
                                 //if this is a popup lcd and popups are enabled show the message
-                                if (AllowStationPopupLCD && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                                if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 {
                                     MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
                                     seenPopup = true;

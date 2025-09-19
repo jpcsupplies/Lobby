@@ -92,6 +92,12 @@ namespace Lobby.scripts
                 }
                 BroadcastConfig();
             }
+            else if (message.StartsWith("IsAdmin:"))
+            {
+                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
+                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes($"AdminStatus:{steamId}:{isAdmin}"), steamId);
+            }
             else if (message.StartsWith("RequestLed it:"))
             {
                 ulong steamId = ulong.Parse(message.Split(':')[1]);
@@ -159,6 +165,7 @@ namespace Lobby.scripts
 
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("Led itSuccess"), steamId);
             }
+
         }
 
         private string LoadConfigText()
