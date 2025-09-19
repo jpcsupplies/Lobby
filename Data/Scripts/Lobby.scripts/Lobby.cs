@@ -76,11 +76,13 @@ namespace Lobby.scripts
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
         public string ServerPasscode = ""; // New field for passcode
         public string NetworkName = ""; // Placeholder for server group name
-        public bool AllowDestinationLCD = true; // Placeholder for destination LCDs
-        public bool AllowStationPopupLCD = true; // Placeholder for station popup LCDs
+        public bool AllowDestinationLCD = true; // Setting for destination LCDs 
+        public bool AllowStationPopupLCD = true; // Setting for station popup LCDs
+        public bool AllowAdminStationPopup = true; //allow popup if disabled but admin ownded
         public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
         public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
+      
 
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
@@ -158,7 +160,7 @@ namespace Lobby.scripts
                 // Check and create default config
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
                 //Lets let the user know whats up. 
@@ -920,7 +922,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
             {
-                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     // BroadcastConfig(); // Broadcast new default
@@ -936,6 +938,7 @@ namespace Lobby.scripts
             summary.AppendLine($"[NetworkName] {NetworkName}");
             summary.AppendLine($"[AllowDestinationLCD] {AllowDestinationLCD}");
             summary.AppendLine($"[AllowStationPopupLCD] {AllowStationPopupLCD}");
+            summary.AppendLine($"[AllowAdminStationPopup] {AllowAdminStationPopup}");
             summary.AppendLine($"[AllowStationClaimLCD] {AllowStationClaimLCD} (Placeholder)");
             summary.AppendLine($"[AllowStationFactionLCD] {AllowStationFactionLCD} (Placeholder)");
             summary.AppendLine($"[AllowStationTollLCD] {AllowStationTollLCD} (Placeholder)");
@@ -1098,7 +1101,7 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE] 1.2.3.4:12345 Ramblers Frontier\n[GW] 1.2.3.40:50600 Orion Sector\n[GN]\n[GS] 34.33.2.1:45674 Rings of Saturn\n[GU]\n[GD]";
+                return "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
         }
@@ -1202,6 +1205,13 @@ namespace Lobby.scripts
                     {
                         bool.TryParse(parts[1], out AllowStationPopupLCD);
                     }
+                }
+                else if (trimmed.StartsWith("[AllowAdminStationPopup]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowAdminStationPopup = true;
+                    if (parts.Length > 1)
+                        bool.TryParse(parts[1], out AllowAdminStationPopup);
                 }
                 else if (trimmed.StartsWith("[AllowStationClaimLCD]"))
                 {
