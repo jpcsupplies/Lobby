@@ -31,6 +31,7 @@ namespace Lobby.scripts
     using VRage;
     using VRage.Game;
     using VRage.Game.ModAPI;
+    //using VRage.Game.ModAPI.Ingame;
     using VRage.ModAPI;
     using VRage.Audio;
     using VRage.Game.Components;
@@ -219,34 +220,43 @@ namespace Lobby.scripts
         }
 
 
-        private bool LCDOwnedByAdmin(IMyTextPanel textPanel)
+        private bool LCDOwnedByAdmin(IMyTextPanel textPanel, bool debug=false)
         {
             if (textPanel == null)
                 return false;
 
-            var grid = textPanel.CubeGrid as IMyCubeGrid;
+            var grid = textPanel.CubeGrid as VRage.Game.ModAPI.IMyCubeGrid;
             if (grid == null || grid.BigOwners.Count == 0)
                 return false;
 
-            long ownerId = grid.BigOwners[0];
-            if (adminCache.ContainsKey(ownerId))
-            {
-                return adminCache[ownerId];
-            }
+            var player = MyAPIGateway.Session.Player;
+            if (player == null)
+                return false;
 
-            if (MyAPIGateway.Multiplayer.IsServer)
+            // Check if the current player owns the grid
+            VRage.Game.MyRelationsBetweenPlayerAndBlock relation = (textPanel as VRage.Game.ModAPI.IMyCubeBlock).GetUserRelationToOwner(player.IdentityId);
+            bool isOwnedByPlayer = relation == VRage.Game.MyRelationsBetweenPlayerAndBlock.Owner;
+
+            if (isOwnedByPlayer)
             {
-                // Local check for co-op host or single-player
-                ulong steamId = (ulong)ownerId;
-                bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
-                adminCache[ownerId] = isAdmin;
-                if (AllowAdminStationPopup) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local IsAdmin for {steamId}: {isAdmin}"); }
+                // Local check for player-owned grid (offline/co-op/single-player)
+                bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(player.SteamUserId) >= MyPromoteLevel.SpaceMaster;
+                adminCache[grid.BigOwners[0]] = isAdmin;
+                if (debug) {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player-owned grid, IsAdmin: {isAdmin}");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: My PromoteLevel: {MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId)}");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player IdentityId: {player.IdentityId}, Grid Owners: {string.Join(", ", grid.BigOwners)}");
+                }
                 return isAdmin;
             }
 
-            // Request admin status from server
-            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes($"IsAdmin:{ownerId}"));
-            return false; // Return false until response received
+            // For non-player-owned grids (dedicated server, remote admins)
+            long ownerId = grid.BigOwners[0];
+            if (adminCache.ContainsKey(ownerId))
+                return adminCache[ownerId];
+
+            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes($"IsAdmin:{(ulong)ownerId}"));
+            return false;
         }
 
 
@@ -552,9 +562,12 @@ namespace Lobby.scripts
                             {
 
                                 //if this is a popup lcd and popups are enabled or admin-owned with AllowAdminStationPopup true
-                                bool isAdminOverride = AllowAdminStationPopup && LCDOwnedByAdmin(textPanel);
+                                bool isAdminOverride = AllowAdminStationPopup && LCDOwnedByAdmin(textPanel, debug);
                                 bool popupCondition = AllowStationPopupLCD || isAdminOverride;
-                                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Popup condition - AllowStationPopupLCD={AllowStationPopupLCD}, isAdminOverride={isAdminOverride}, popupCondition={popupCondition}");
+                                if (debug)
+                                {
+                                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Popup condition - AllowStationPopupLCD={AllowStationPopupLCD}, isAdminOverride={isAdminOverride}, popupCondition={popupCondition}");
+                                }
                                 if (popupCondition && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 //if this is a popup lcd and popups are enabled show the message
                                 //if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
@@ -565,7 +578,10 @@ namespace Lobby.scripts
                                 }
                                 else if (textPanel.CustomName.Contains("[station]") && !popupCondition)
                                 {
-                                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
+                                    if (debug)
+                                    {
+                                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
+                                    }
                                 }
                             }
                         }
@@ -800,11 +816,11 @@ namespace Lobby.scripts
             {
                 if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase))
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
-                else if (split[1].Equals("init", StringComparison.InvariantCultureIgnoreCase))
+                else if (split[1].Equals("debug", StringComparison.InvariantCultureIgnoreCase))
                 {
                     //Init(); // Force re-initialization (lets not)
                     UpdateLobby(true); // Debug output
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Forced Update Debug Init");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Show Debug messages");
                 }
                 else if (split[1].Equals("reset", StringComparison.InvariantCultureIgnoreCase))
                 {
