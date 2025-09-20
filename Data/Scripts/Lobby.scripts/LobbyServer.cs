@@ -98,6 +98,28 @@ namespace Lobby.scripts
                 bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes($"AdminStatus:{steamId}:{isAdmin}"), steamId);
             }
+            else if (message.StartsWith("ltest reset"))
+            {
+                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                if (MyAPIGateway.Session.GetUserPromoteLevel(steamId) < MyPromoteLevel.SpaceMaster)
+                {
+                    MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("AccessDenied"), steamId);
+                    return;
+                }
+                try
+                {
+                    // Regenerate config with defaults
+                    string defaultConfig = LoadConfigText(true); // Forces default regardless of file
+                    SaveConfigText(defaultConfig);
+                    BroadcastConfig();
+                    MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigReset:Defaults regenerated"), steamId);
+                }
+                catch (Exception e)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("LobbyServer", $"Config reset failed: {e.Message}");
+                    MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigReset:Failed"), steamId);
+                }
+            }
             else if (message.StartsWith("RequestLed it:"))
             {
                 ulong steamId = ulong.Parse(message.Split(':')[1]);
@@ -168,11 +190,11 @@ namespace Lobby.scripts
 
         }
 
-        private string LoadConfigText()
+        private string LoadConfigText(bool reset=false)
         {
             try
             {
-                if (MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
+                if (!reset && MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
                 {
                     using (var reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
                     {

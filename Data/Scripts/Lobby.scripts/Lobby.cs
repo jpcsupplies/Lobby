@@ -82,7 +82,7 @@ namespace Lobby.scripts
         public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
         public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
-      
+
 
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
@@ -234,6 +234,16 @@ namespace Lobby.scripts
                 return adminCache[ownerId];
             }
 
+            if (MyAPIGateway.Multiplayer.IsServer)
+            {
+                // Local check for co-op host or single-player
+                ulong steamId = (ulong)ownerId;
+                bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
+                adminCache[ownerId] = isAdmin;
+                if (AllowAdminStationPopup) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local IsAdmin for {steamId}: {isAdmin}"); }
+                return isAdmin;
+            }
+
             // Request admin status from server
             MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes($"IsAdmin:{ownerId}"));
             return false; // Return false until response received
@@ -262,6 +272,10 @@ namespace Lobby.scripts
                 Target = "none";
                 UpdateLobby(false);
             }
+            if (message.StartsWith("ConfigReset:"))
+            {
+                MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset complete: Defaults regenerated.");
+            }
             else if (message == "AccessDenied")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
@@ -281,6 +295,7 @@ namespace Lobby.scripts
                 bool isAdmin = bool.Parse(parts[2]);
                 adminCache[ownerId] = isAdmin;
             }
+
         }
 
         /// <summary>
@@ -485,19 +500,19 @@ namespace Lobby.scripts
                 }
 
                 //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
-                
-                
-                    // Collect [destination] LCDs found
-                    foreach (var block in LCDlist)
+
+
+                // Collect [destination] LCDs found
+                foreach (var block in LCDlist)
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                     {
-                        var textPanel = block as IMyTextPanel;
-                        if (textPanel != null && LCDTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
-                        {
-                            updatelist.Add(textPanel);
-                        }
-                        //if (debug) { } //debug flag if needed
+                        updatelist.Add(textPanel);
                     }
-                
+                    //if (debug) { } //debug flag if needed
+                }
+
                 //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
 
                 //Normal Check [station] LCDs for popup Logic
@@ -535,12 +550,22 @@ namespace Lobby.scripts
                             //check that we have not already seen a popup
                             if (!seenPopup || textPanel.EntityId != lastStationId)
                             {
+
+                                //if this is a popup lcd and popups are enabled or admin-owned with AllowAdminStationPopup true
+                                bool isAdminOverride = AllowAdminStationPopup && LCDOwnedByAdmin(textPanel);
+                                bool popupCondition = AllowStationPopupLCD || isAdminOverride;
+                                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Popup condition - AllowStationPopupLCD={AllowStationPopupLCD}, isAdminOverride={isAdminOverride}, popupCondition={popupCondition}");
+                                if (popupCondition && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 //if this is a popup lcd and popups are enabled show the message
-                                if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
+                                //if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 {
                                     MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
                                     seenPopup = true;
                                     lastStationId = textPanel.EntityId; // Track this station
+                                }
+                                else if (textPanel.CustomName.Contains("[station]") && !popupCondition)
+                                {
+                                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
                                 }
                             }
                         }
@@ -781,6 +806,12 @@ namespace Lobby.scripts
                     UpdateLobby(true); // Debug output
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Forced Update Debug Init");
                 }
+                else if (split[1].Equals("reset", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("ltest reset:" + MyAPIGateway.Session.Player.SteamUserId));
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset request sent to server (admin only)");
+                }
+
             }
             else if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase) && split.Length < 2)
             {
