@@ -220,7 +220,7 @@ namespace Lobby.scripts
         }
 
 
-        private bool LCDOwnedByAdmin(IMyTextPanel textPanel, bool debug=false)
+        private bool LCDOwnedByAdmin(IMyTextPanel textPanel, bool debug = false)
         {
             if (textPanel == null)
                 return false;
@@ -242,13 +242,17 @@ namespace Lobby.scripts
                 // Local check for player-owned grid (offline/co-op/single-player)
                 bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(player.SteamUserId) >= MyPromoteLevel.SpaceMaster;
                 adminCache[grid.BigOwners[0]] = isAdmin;
-                if (debug) {
+                if (debug)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "In LCD Owned By Admin Check.");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player-owned grid, IsAdmin: {isAdmin}");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: My PromoteLevel: {MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId)}");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player IdentityId: {player.IdentityId}, Grid Owners: {string.Join(", ", grid.BigOwners)}");
                 }
                 return isAdmin;
             }
+
+
 
             // For non-player-owned grids (dedicated server, remote admins)
             long ownerId = grid.BigOwners[0];
@@ -503,11 +507,7 @@ namespace Lobby.scripts
                 var sphere = new BoundingSphereD(position, 9); //destination lcds
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
 
-                //Debug info
-                if (debug)
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
-                }
+
 
                 //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
 
@@ -524,6 +524,17 @@ namespace Lobby.scripts
                 }
 
                 //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
+                //Debug info
+                if (debug)
+                {
+                    var player = MyAPIGateway.Session.Player;
+                    bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(player.SteamUserId) >= MyPromoteLevel.SpaceMaster;
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Pre Station Check.");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player-owned grid, IsAdmin: {isAdmin}");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: My PromoteLevel: {MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId)}");
+                    
+                }
 
                 //Normal Check [station] LCDs for popup Logic
                 var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
@@ -566,6 +577,11 @@ namespace Lobby.scripts
                                 bool popupCondition = AllowStationPopupLCD || isAdminOverride;
                                 if (debug)
                                 {
+                                    var player = MyAPIGateway.Session.Player;
+                                    var grid = textPanel.CubeGrid as VRage.Game.ModAPI.IMyCubeGrid;
+                                    MyAPIGateway.Utilities.ShowMessage("Lobby", "In popup Check.");
+                                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player IdentityId: {player.IdentityId}, Grid Owners: {string.Join(", ", grid.BigOwners)}");
+
                                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Popup condition - AllowStationPopupLCD={AllowStationPopupLCD}, isAdminOverride={isAdminOverride}, popupCondition={popupCondition}");
                                 }
                                 if (popupCondition && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
@@ -579,7 +595,7 @@ namespace Lobby.scripts
                                 else if (textPanel.CustomName.Contains("[station]") && !popupCondition)
                                 {
                                     if (debug)
-                                    {
+                                    {   
                                         MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
                                     }
                                 }
