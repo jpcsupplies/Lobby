@@ -80,6 +80,7 @@ namespace Lobby.scripts
         public bool AllowDestinationLCD = true; // Setting for destination LCDs 
         public bool AllowStationPopupLCD = true; // Setting for station popup LCDs
         public bool AllowAdminStationPopup = true; //allow popup if disabled but admin ownded
+        public bool AllowAdminDestinationLCD = true; // New setting for admin-created only destination 
         public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
         public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
@@ -102,6 +103,7 @@ namespace Lobby.scripts
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
+        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
         private List<Destination> serverDestinations = new List<Destination>();
 
         MyEntity3DSoundEmitter emitter;
@@ -162,7 +164,8 @@ namespace Lobby.scripts
                 // Check and create default config
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    SaveConfigText(DefaultConfig);
+                        //"[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
                 //Lets let the user know whats up. 
@@ -609,20 +612,26 @@ namespace Lobby.scripts
                 // Process [destination] LCDs if allowed
                 if (AllowDestinationLCD)
                 {
+
                     foreach (var textPanel in updatelist)
                     {
-                        var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
-                        if (nameArray.Length >= 2)
+                        //we should only display them if allowdestination or failing that allowadmindestination is true
+                        if (AllowDestinationLCD || (AllowAdminDestinationLCD && LCDOwnedByAdmin(textPanel)))
                         {
-                            int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
-                            Target = nameArray[nameIdx]; // Server address
-                            Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
-                            if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
-                            noZone = false;
-                            return true;
+                            var nameArray = textPanel.CustomName.ToString().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Processing LCD: {textPanel.CustomName}, Name Array: {string.Join(",", nameArray)}, Text: {textPanel.GetText() ?? "null"}"); }
+                            if (nameArray.Length >= 2)
+                            {
+                                int nameIdx = nameArray[0].IndexOf("[destination]", StringComparison.InvariantCultureIgnoreCase) >= 0 ? 1 : 0;
+                                Target = nameArray[nameIdx]; // Server address
+                                Zone = textPanel.GetText() ?? string.Join(" ", nameArray.Skip(nameIdx + 1)); // Description
+                                if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Set Target: {Target}, Zone: {Zone}"); }
+                                noZone = false;
+                                return true;
+                            }
+
+                            if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
                         }
-                        if (debug) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Invalid CustomName: {textPanel.CustomName}, Length: {nameArray.Length}"); }
                     }
                 }
                 // Check interstellar boundaries if no [destination] LCDs found
@@ -1015,7 +1024,8 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
             {
-                SaveConfigText("[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText(DefaultConfig);
+                //[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     // BroadcastConfig(); // Broadcast new default
@@ -1030,6 +1040,7 @@ namespace Lobby.scripts
             summary.AppendLine("Configuration Settings:");
             summary.AppendLine($"[NetworkName] {NetworkName}");
             summary.AppendLine($"[AllowDestinationLCD] {AllowDestinationLCD}");
+            summary.AppendLine($"[AllowAdminDestinationLCD] {AllowDestinationLCD}");
             summary.AppendLine($"[AllowStationPopupLCD] {AllowStationPopupLCD}");
             summary.AppendLine($"[AllowAdminStationPopup] {AllowAdminStationPopup}");
             summary.AppendLine($"[AllowStationClaimLCD] {AllowStationClaimLCD} (Placeholder)");
@@ -1194,7 +1205,8 @@ namespace Lobby.scripts
                         return reader.ReadToEnd();
                     }
                 }
-                return "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
+                return DefaultConfig;
+                //[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config load error: {e.Message}"); return ""; }
         }
@@ -1289,6 +1301,13 @@ namespace Lobby.scripts
                     {
                         bool.TryParse(parts[1], out AllowDestinationLCD);
                     }
+                }
+                else if (trimmed.StartsWith("[AllowAdminDestinationLCD]"))
+                {
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    AllowAdminDestinationLCD = true;
+                    if (parts.Length > 1)
+                        bool.TryParse(parts[1], out AllowAdminDestinationLCD);
                 }
                 else if (trimmed.StartsWith("[AllowStationPopupLCD]"))
                 {
