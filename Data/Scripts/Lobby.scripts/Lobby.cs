@@ -100,6 +100,7 @@ namespace Lobby.scripts
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
 
+        private const string MyVerReply = "Gateway Lobby 3.5 (+range +serverside +limitLCD to Admin)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -165,7 +166,7 @@ namespace Lobby.scripts
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
                     SaveConfigText(DefaultConfig);
-                        //"[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    //"[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
                 }
 
                 //Lets let the user know whats up. 
@@ -536,12 +537,13 @@ namespace Lobby.scripts
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Found {LCDlist.Count} entities, {updatelist.Count} LCDs, Tags: {string.Join(",", LCDTags)}");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Player-owned grid, IsAdmin: {isAdmin}");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: My PromoteLevel: {MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId)}");
-                    
+
                 }
 
                 //Normal Check [station] LCDs for popup Logic
+
                 var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
-                var sphere2 = new BoundingSphereD(position, 50); //popup notification lcds scanrange
+                var sphere2 = new BoundingSphereD(position, StationPrescan()); //popup notification lcds scanrange
                 var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
                 string[] stationTags = new string[] { "[station]", "(station)" };
                 // old check string[] LCDTags2 = new string[] { "[station]", "(station)" };
@@ -587,6 +589,7 @@ namespace Lobby.scripts
 
                                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Popup condition - AllowStationPopupLCD={AllowStationPopupLCD}, isAdminOverride={isAdminOverride}, popupCondition={popupCondition}");
                                 }
+
                                 if (popupCondition && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 //if this is a popup lcd and popups are enabled show the message
                                 //if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
@@ -598,7 +601,7 @@ namespace Lobby.scripts
                                 else if (textPanel.CustomName.Contains("[station]") && !popupCondition)
                                 {
                                     if (debug)
-                                    {   
+                                    {
                                         MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
                                     }
                                 }
@@ -607,6 +610,7 @@ namespace Lobby.scripts
                     }
                     // this was here for a reason but debug code not using it atm. else { break; }
                 }
+
 
 
                 // Process [destination] LCDs if allowed
@@ -829,8 +833,8 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                reply = "Gateway Lobby 3.4 (server side settings)";
-                MyAPIGateway.Utilities.ShowMessage("VER", reply);
+                //MyVerReply = "Gateway Lobby 3.4 (server side settings)";
+                MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
                 return true;
             }
             #endregion ver
@@ -1015,6 +1019,45 @@ namespace Lobby.scripts
             return false;
         }
         #endregion command list
+
+        // prescans for station popups to get optional range
+        private int StationPrescan()
+        {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null)
+                return 50;
+
+            // [station] LCDs (scan 200m radius for potential popups)
+            var stationSphere = new BoundingSphereD(player.GetPosition(), 200);
+            var stationEntities = MyAPIGateway.Entities.GetEntitiesInSphere(ref stationSphere);
+            string[] stationTags = new string[] { "[station]", "(station)" };
+
+            foreach (var block in stationEntities)
+            {
+                var textPanel = block as IMyTextPanel;
+                if (textPanel != null &&
+                    textPanel.IsFunctional &&
+                    textPanel.IsWorking &&
+                    stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0) &&
+                    textPanel.CustomName.Contains("popup"))
+                {
+                    // Parse custom radius from CustomName (e.g., "[station] popup 65" → 65)
+                    var parts = textPanel.CustomName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 3 && parts[1].Equals("popup", StringComparison.OrdinalIgnoreCase))
+                    {
+                        double radius;
+                        if (double.TryParse(parts[2], out radius))
+                        {
+                            if (radius >= 6 && radius <= 200 && radius > 0)
+                            {
+                                return (int)radius; // Return parsed radius (cast to int for consistency)
+                            }
+                        }
+                    }
+                }
+            }
+            return 50; // Default if no valid popup LCD found or invalid radius
+        }
 
         //Grabs all important mod settings and displays it on screen for enduser reference.
         private void ShowConfigSummary(out string reply)

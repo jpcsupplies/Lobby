@@ -93,6 +93,8 @@ without waiting for the chat notification to appear.
 
 The "Title" field of the LCD is not used and can be anything you like, example: "Orion Departure LCD" 
 
+You can also limit destination LCDs to only ones created by a server admin. Or disable them entirely.
+Refer Other Configuration options at end of readme.
 -
 
 ********************************
@@ -103,11 +105,24 @@ Using "NAME" field key in: [station] popup
 Then edit the public text (which is usually shown on the LCD screen) with whatever message
 you would like to pop up on a players screen if they come within 50 metres of the LCD.
 
+Basic Usage:
+Just make the LCD, name it [station] popup then highlight the screen and press "f" to edit
+the message you want to pop up to players.
+
 Whenever a player comes within 50 or so blocks (about the interior size of a small station or the 
 wing of a large station) the pop up message will appear on the players screen and output the text
 you specified, and not be shown again unless they travel outside of 50 metres from the LCD then
 return again.
 
+Advanced Usage:
+If 50 metres is too big or small you can override the distance by adding a range to the NAME. 
+Example:  [station] popup 100
+Overrides are limited to between 6 and 200 metres in game.
+
+If you want to limit popup messages to only server admins, or disable them entirely this is
+a configurable option. Refer Other Configuration options at end of readme.
+
+Note:
 You do NOT requre any destination LCD, you can use these popups simply as an automatic welcome 
 message to visitors of your ship or space station!
 
@@ -211,19 +226,32 @@ too but the above are the most important options.
 Other Configuration options
 ****************************
 The /Ledit command has additional options a server admin can change although many
-are still placeholders and will be ignored:
+are still placeholders and will be ignored, and may or may not be particularly 
+reliable:
 
 [AllowDestinationLCD] true / false
 Should Destination LCDs be allowed to work.  Default true.
 Configures if players on servers can create their own destination LCDs
 If this is set to false all [destination] LCDs will be ignored.
 
+[AllowAdminDestinationLCD] true / false
+Default true.
+If you set AllowDestinationLCD to false but set this option to true then if a server
+admin creates a [destination] LCD the destination will still be offered to players
+as long as the LCD is owned/created by a server Admin user.
+
 [AllowStationPopupLCD] true /false
 Should station/ship popup greeting LCDs be allowed? Default true.
 Configures if "[station] popup" will work or not. false means they are ignored.
 
+[AllowStationPopupLCD] true /false
+Default true.
+If you set AllowStationPopupLCD to false but set this option to true, then if a server
+admin creates a [station] popup #  LCD, then the popup will still appear as long as the
+LCD is owned/created by a server Admin.
+
 [NetworkName]    
-Currently a placeholder for future features.
+Currently a placeholder for future features. Not Implemented.
 This is the optional name of your shared universe.
 Example: You have three different servers which are connected using interstellar boundries
 or departure LCD's. To share things all three servers would need to be the same Network.  
@@ -237,7 +265,7 @@ from creative servers to travel TO creative servers.   Survival <-> Creative tra
 should probably not be allowed even on Anarchy servers.)
 
 [ServerPasscode]
-Currently a placeholder for future features. Default is no passcode.
+Currently a placeholder for future features. Default is no passcode. Not Implemented.
 This is the optional passcode to Authenticate information carried between same network 
 servers by a player travelling between them.   All servers would need to share this
 code and it is not available to normal players only admins as it is only recorded server
