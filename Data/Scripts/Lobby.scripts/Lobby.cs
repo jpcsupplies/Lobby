@@ -77,6 +77,7 @@ namespace Lobby.scripts
         public double EdgeBuffer = 2000; // Default edge buffer for approach warnings (meters)
         public string ServerPasscode = ""; // New field for passcode
         public string NetworkName = ""; // Placeholder for server group name
+        public bool SuppressInterStellar = false; // Internal Setting to shut off interstellar pager
         public bool AllowDestinationLCD = true; // Setting for destination LCDs 
         public bool AllowStationPopupLCD = true; // Setting for station popup LCDs
         public bool AllowAdminStationPopup = true; //allow popup if disabled but admin ownded
@@ -449,7 +450,8 @@ namespace Lobby.scripts
             bool hasExits = serverDestinations.Any(d => d.Address != "0.0.0.0:0");
             //expanded for readability
             //Zone = hasExits ? "Scanning..." : "No interstellar exits defined"; 
-            if (hasExits)
+            //Return True if we have valid exits, and cubesize is not invalid/interstellar space isnt disabled
+            if (hasExits && !SuppressInterStellar)
             {
                 Zone = "Scanning..."; //old hud logic
                 //MyAPIGateway.Utilities.ShowMessage("Debug:", "Has exits!");
@@ -638,9 +640,10 @@ namespace Lobby.scripts
                         }
                     }
                 }
-                // Check interstellar boundaries if no [destination] LCDs found
+                // Check interstellar boundaries if no [destination] LCDs found and boundry is valid.
                 // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
-                if (!quiet)
+                // SupressInterStellar supresses interstellar logic if the boundry is invalid.
+                if (!quiet || !SuppressInterStellar)
                 {
                     double X = position.X; double Y = position.Y; double Z = position.Z;
                     double range = CubeSize / 2; // Half cube size from center
@@ -862,7 +865,7 @@ namespace Lobby.scripts
             {
                 StopLastPlayedSound(); //Way to reset sound api if needed
                 if (SetExits()) { MyAPIGateway.Utilities.ShowMessage("Note:", "Interstellar Space Boundry Detected."); quiet = false; }
-                else { MyAPIGateway.Utilities.ShowMessage("Note:", "No Interstellar Space Detected."); }
+                else { MyAPIGateway.Utilities.ShowMessage("Note:", "No Interstellar Space Detected."); } // Shouldn't need SuppressInterStellar=true; unless bad performance
                 //var players = new List<IMyPlayer>();
                 //MyAPIGateway.Players.GetPlayers(players, p => p != null);
                 var updatelist = new HashSet<IMyTextPanel>();
@@ -1298,10 +1301,31 @@ namespace Lobby.scripts
                 {
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     double parsedSize = CubeSize; // Initialize with class-level default
+                    //if a value has been specified try to get a number out of it
                     if (parts.Length > 1 && double.TryParse(parts[1], out parsedSize))
                     {
-                        CubeSize = parsedSize;
+                        //if the value is invalid (zero or negative number) set it to zero.
+                        if (parsedSize <= 0)
+                        {
+                            //Set this 0 when invalid so supress remains on, otherwise next run may accidentally turn it on
+                            //when the value is invalid. In effect 0 boundry disables interstellar exits.
+                            CubeSize = 0; //150000000.0; // Default
+                            quiet = true; // Disable potential boundaries nag message off invalid boundries
+                            SuppressInterStellar = true;  // Assume we should disable with wrongly configured interstellar settings.
+                        }
+                        else
+                        {
+                            //If the value is valid or above zero use that value.
+                            CubeSize = parsedSize;
+                            quiet = false; // Enable boundaries nag message if applicable to current player position
+                            SuppressInterStellar = false; // let interstellar exits be enabled.
+                        }
                     }
+                    //if [cubesize] was specified, but has NO value keep class default.
+                    //just in case our file was missing a value somehow (class defined as 150000000 for CubeSize)
+                    //This is probably not necessary but makes sure Suppress is turned off at this point in case 
+                    //a config reset was recently ran.
+                    else { SuppressInterStellar = false; }
                 }
                 else if (trimmed.StartsWith("[edgebuffer]"))
                 {
@@ -1309,7 +1333,16 @@ namespace Lobby.scripts
                     double parsedBuffer = EdgeBuffer; // Initialize with class-level default
                     if (parts.Length > 1 && double.TryParse(parts[1], out parsedBuffer))
                     {
-                        EdgeBuffer = parsedBuffer;
+                        //if interstellar space is 0 or invalid make edgebuffer 0 so we dont end up with a calculated 0 boundry minus edge buffer value.
+                        //to avoid for example an edgebuffer value of -2000
+                        if (parsedBuffer <= 0 || !SuppressInterStellar)
+                        {
+                            EdgeBuffer = 0; // 2000.0; // Default, or set to 0 to disable buffers
+                        }
+                        else
+                        {
+                            EdgeBuffer = parsedBuffer;
+                        }
                     }
                 }
                 else if (trimmed.StartsWith("[NetworkName]"))

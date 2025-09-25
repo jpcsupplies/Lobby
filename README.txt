@@ -1,24 +1,26 @@
+============================================
 Space Engineeers Workshop;
 Lobby World Gateway MOD
 (Aka Travel Module of Galaxies Project)
-======================
-
+============================================
 Developed by PhoenixX (Aka Pirate Captain X)
 
-======================
-
-There are not many keyboard commands. This mod mostly makes use of LCDs.
-
-Keyboard commands:
-Enter a command into the in game chat box, and it will perform an action.
-
-Enter "/Lhelp" for a list of current commands.
-Enter "/Lhelp #" for more information on that particular command.
-
-If you just want to dry run test the jumping sound, Enter: /Ltest sound
-Note: This will not trigger the 20 second countdown, it just plays the sound.
 -
 
+==========================
+Contents in this document:
+==========================
+'Why Use this ?'
+'How to use'
+	'Keyboard Commands'
+	'Dynamic LCD Destinations'
+	'Station Pop up Messages (Fun!)'
+	'Interstellar Space Boundry'
+		'How to use this feature'
+'Other Configuration options'
+'Notes'
+
+-
 
 ==================
 Why Use this ?
@@ -72,8 +74,33 @@ being part of the same Universe that can interact somewhat.
 How to use:
 ==================
 
+*********************
+* Keyboard commands *
+*********************
+There are not many keyboard commands. This mod mostly makes use of LCDs.
+
+Keyboard commands:
+Enter a command into the in game chat box, and it will perform an action.
+
+Enter "/Lhelp" for a list of current commands.
+Enter "/Lhelp #" for more information on that particular command.
+
+There are some additional keyboard commands available for admins. Refer to the 
+"Interstellar Space Boundry" and "Other Configuration Options" for details.
+
+If you just want to dry run test the jumping sound, Enter: /Ltest sound
+Note: This will not trigger the 20 second countdown, it just plays the sound.
+
+Admins - if you find yourself with an invalid out out of date configuration, 
+enter "/ltest rest"   to revert your server side config file to default settings without
+needing to remotely log into your server to delete it by hand.
+Be sure to use /lconfig beforehand if you have not noted your current network name or
+existing Interstellar exit server addresses if you need to add them again.
+
+-
+
 ***************
-*Dynamic      * 
+*Dynamic LCD  * 
 *Destinations:*
 ***************
 Create an LCD on a large station or ship you wish to use as a "travel departure point"
@@ -95,10 +122,11 @@ The "Title" field of the LCD is not used and can be anything you like, example: 
 
 You can also limit destination LCDs to only ones created by a server admin. Or disable them entirely.
 Refer Other Configuration options at end of readme.
+
 -
 
 ********************************
-*Station Pop up message: (fun!)*
+*Station Pop up messages: (fun!)*
 ********************************
 Create another LCD on a large station/ship block.
 Using "NAME" field key in: [station] popup 
@@ -161,9 +189,9 @@ Eg if you had 9 servers representing 9 locations in a "Galaxy"  the map would lo
 On 'server 5', Players flying out the right [GE] of your map would be sent to 'server 6'.  etc.
 
 
-********************
-To use this feature:
-********************
+************************
+How to use this feature:
+************************
 First check if there are already exits defined (if you have multiple admin etc)
 with /LCONFIG
 
@@ -222,9 +250,9 @@ too but the above are the most important options.
 
 -
 
-****************************
+============================
 Other Configuration options
-****************************
+============================
 The /Ledit command has additional options a server admin can change although many
 are still placeholders and will be ignored, and may or may not be particularly 
 reliable:
@@ -244,7 +272,7 @@ as long as the LCD is owned/created by a server Admin user.
 Should station/ship popup greeting LCDs be allowed? Default true.
 Configures if "[station] popup" will work or not. false means they are ignored.
 
-[AllowStationPopupLCD] true /false
+[AllowAdminStationPopupLCD] true /false
 Default true.
 If you set AllowStationPopupLCD to false but set this option to true, then if a server
 admin creates a [station] popup #  LCD, then the popup will still appear as long as the
@@ -307,13 +335,7 @@ can be checked for triggering severe negative reputation changes.
 Direct Faction payments (or at least a 50:50 split between vault and faction)
 may be allowed if the faction has more than 3 members?
 
-Other options may be added later such as:
-Travel options: Allow Ship, Allow Inventory, Allow Faction, Allow Buffs, 
-Allow bank balance.
-General options: Enable Visuals, Enable lottery etc. depending what features we 
-can get working.
-(Note to self: lottery is just a random money giveaway from ticket sales and travel/claim/toll 
-creation fees?)
+-
 
 *******
 *Notes*
@@ -323,6 +345,14 @@ To increase compatability with non-english keyboards you can use [ ]  or ( ) in 
 
 For Interstellar Space definitions, each exit prefix is already populated, so () does not
 work since you just type your address after it.
+
+Other options may be added later such as:
+Travel options: Allow Ship, Allow Inventory, Allow Faction, Allow Buffs, 
+Allow bank balance.
+General options: Enable Visuals, Enable lottery etc. depending what features we 
+can get working.
+(Note to self: lottery is just a random money giveaway from ticket sales and travel/claim/toll 
+creation fees?)
 
 
 
