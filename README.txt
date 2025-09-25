@@ -11,13 +11,28 @@ Developed by PhoenixX (Aka Pirate Captain X)
 Contents in this document:
 ==========================
 'Why Use this ?'
+
 'How to use'
 	'Keyboard Commands'
 	'Dynamic LCD Destinations'
 	'Station Pop up Messages (Fun!)'
 	'Interstellar Space Boundry'
 		'How to use this feature'
+	'Navigation Warnings'
+	
 'Other Configuration options'
+	'AllowDestinationLCD'
+		'AllowAdminDestinationLCD'
+	'AllowStationPopupLCD'
+		'AllowAdminStationPopupLCD'
+	'NetworkName'
+	'ServerPasscode'
+
+'Claim System'
+	'AllowStationClaimLCD'
+	'AllowStationFactionLCD'
+	'AllowStationTollLCD'
+	
 'Notes'
 
 -
@@ -248,6 +263,24 @@ Press ok to exit the text editor, then type /LSAVE to save them and despawn the 
 Other options may be added later, such as passcodes or options related to ship to transfer 
 too but the above are the most important options.
 
+
+*******************
+Navigation Warnings
+*******************
+Navigation warnings are admin created popup warning messages tied to a particular position
+in space, and a defined radius around it.
+
+To use this features, open your configuration editor with /Ledit and look for the 
+[Navigation Warnings]  heading.
+
+Below this heading you can enter 4 values and a warning message. 
+x,y,z radius warning message
+
+example:
+1000,222,11111 15000 danger black hole
+
+enter your navigation hazards location then use /lsave to record it.
+
 -
 
 ============================
@@ -306,6 +339,10 @@ passcode.  Additional logic allowing players to opt to allow their ship to trave
 one way only to no passcode servers, or departing a server and specifying a passcode 
 when they leave to allow it to travel too (ie the entry 
 
+
+************
+Claim System
+************
 [AllowStationClaimLCD] true / false
 Currently a placeholder for future features. Default true.
 This is an option that configures if players can use "[station] claim" LCDs
@@ -334,6 +371,8 @@ it allows heists.. and a condition (damage/grinding to [vault] container) that
 can be checked for triggering severe negative reputation changes.
 Direct Faction payments (or at least a 50:50 split between vault and faction)
 may be allowed if the faction has more than 3 members?
+
+
 
 -
 
