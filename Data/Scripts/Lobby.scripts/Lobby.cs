@@ -57,7 +57,15 @@ namespace Lobby.scripts
         [ProtoMember(2)] public string NetworkName; // e.g., "Orion"
         [ProtoMember(3)] public string Description; // e.g., "Ramblers Frontier"
     }
-
+    [ProtoContract]
+    public class NavigationWarning
+    {
+        [ProtoMember(1)] public double X;
+        [ProtoMember(2)] public double Y;
+        [ProtoMember(3)] public double Z;
+        [ProtoMember(4)] public double Radius;
+        [ProtoMember(5)] public string Message;
+    }
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
@@ -101,11 +109,12 @@ namespace Lobby.scripts
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
 
-        private const string MyVerReply = "Gateway Lobby 3.5 (+range +serverside +limitLCD to Admin)";  //mod version
+        private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for warnings
+        private const string MyVerReply = "Gateway Lobby 3.52 (+Navigations Warnings)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
-        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]";
+        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n";
         private List<Destination> serverDestinations = new List<Destination>();
 
         MyEntity3DSoundEmitter emitter;
@@ -507,6 +516,7 @@ namespace Lobby.scripts
 
                 //var players = new List<IMyPlayer>();
                 // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
+                // Player position in 3d space assigned to 'player'
                 Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
                 var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
                 string[] LCDTags = new string[] { "[destination]", "(destination)" };
@@ -613,7 +623,33 @@ namespace Lobby.scripts
                     // this was here for a reason but debug code not using it atm. else { break; }
                 }
 
-
+                //[Navigation Warnings] logic
+                //If it is first time pop up warning; set seen flag
+                //If it is second time only show console message
+                //If no warnings are in current location clear the seen flag.
+                //This will also suppress popups if you just saw a station or claim popup, but still show a warning in chat.
+                //Potentially may be worth letting multiple trigger in the case of nested warnings eg 100km caution, 50km warning, final 10km goodbye message
+                
+                //Need to add a sound effect for this, maybe also check for Draygo HUD API and use that instead/too
+                bool ClearSeenState = true;   //Default that we didn't just see a warning, so safe to clear seenPopup
+                foreach (var warning in navigationWarnings)
+                {
+                    if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
+                    {
+                        MyAPIGateway.Utilities.ShowMissionScreen("Navigation", "", "Warning", warning.Message, null, "Close");
+                        seenPopup = true; //no other popups recently shown except this one 
+                        ClearSeenState = false;
+                        //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Navigation warning triggered: {warning.Message}");
+                        break; // Only show one at a time (Disable if need to show multiple)
+                    }
+                    else if (seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
+                    {
+                        //popups recently seen somewhere so just use a less annoying chat warning this time.                        
+                        MyAPIGateway.Utilities.ShowMessage("Navigation", $"Warning: {warning.Message}");
+                        ClearSeenState = false;
+                        break;  // Only show one at a time (Disable if need to show multiple)
+                    }      
+                }
 
                 // Process [destination] LCDs if allowed
                 if (AllowDestinationLCD)
@@ -668,6 +704,7 @@ namespace Lobby.scripts
                     */
                 }
 
+              
 
                 // Reset flags if no LCDs or boundaries detected
                 // checking updatelist.count may be redundant as we would have already returned if there was any exits
@@ -676,7 +713,7 @@ namespace Lobby.scripts
                 if (updatelist.Count == 0 && updatelist2.Count == 0 && !quiet)
                 {
                     noZone = true;
-                    seenPopup = false;
+                    if (ClearSeenState) { seenPopup = false; }
                     lastStationId = 0; // Clear station tracking
                     Zone = "Scanning...";
                     Target = "none";
@@ -685,10 +722,12 @@ namespace Lobby.scripts
                 //unless quiet was set (because we already set/showed it)
                 return false;
             }
-            //old logic disable if not needed later - re-added to troubleshoot loss of intro messages
+            //old fell through hole logic disable if not needed later - re-added to troubleshoot loss of intro messages
             //no zone is used to detect if we have left the range of any useful lcds
-            //if so reset the option flags to reduce processing and to allow more than one gateway station using 
+            //if so reset the flags to reduce processing and to allow more than one gateway station using 
             //different options
+            //technically this part will only run if no player has spawned in, or if we are a server.
+            //Since single/coop/dedicated games all behave differently we a little escape logic here.
             if (noZone) { seenPopup = false; }
             else { noZone = true; }
 
@@ -1273,11 +1312,55 @@ namespace Lobby.scripts
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
+            navigationWarnings.Clear(); // Clear warnings list
             var lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            bool inNavigationWarnings = false;
 
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
+
+                //Nav warning logic
+                if (trimmed.StartsWith("[Navigation Warnings]"))
+                {
+                    inNavigationWarnings = true;
+                    continue;
+                }
+                else if (inNavigationWarnings && trimmed.StartsWith("[") && !trimmed.StartsWith("[Navigation Warnings]"))
+                {
+                    inNavigationWarnings = false; // End section
+                }
+                else if (inNavigationWarnings && trimmed.Length > 0)
+                {
+                    // Parse "x,y,z radius message"
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 5)
+                    {
+                        string coords = parts[0];
+                        string radiusStr = parts[1];
+                        string message = string.Join(" ", parts.Skip(2));
+
+                        double x; double y; double z; double radius;
+
+                        var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (coordParts.Length == 3 && double.TryParse(coordParts[0], out x) &&
+                            double.TryParse(coordParts[1], out y) &&
+                            double.TryParse(coordParts[2], out z) &&
+                            double.TryParse(radiusStr, out radius) && radius > 0)
+                        {
+                            navigationWarnings.Add(new NavigationWarning
+                            {
+                                X = x,
+                                Y = y,
+                                Z = z,
+                                Radius = radius,
+                                Message = message
+                            });
+                        }
+                    }
+                }
+
+                //all other settings logic
                 if (trimmed.StartsWith("[GE]") || trimmed.StartsWith("[GW]") || trimmed.StartsWith("[GN]") ||
                     trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
                 {
