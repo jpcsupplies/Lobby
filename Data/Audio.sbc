@@ -17,5 +17,21 @@
         </Wave>
       </Waves>
     </Sound>
+    <Sound>
+      <Id>
+        <TypeId>MyObjectBuilder_AudioDefinition</TypeId>
+        <SubtypeId>WoopWoop</SubtypeId>
+      </Id>
+      <MaxDistance>100</MaxDistance>
+      <Volume>1.00</Volume>
+      <Loopable>false</Loopable>
+      <Pitch>0</Pitch>
+      <Waves>
+        <Wave Type="D3">
+          <Start>Data\Sounds\WoopWoop.xwm</Start>
+	  <End></End>
+        </Wave>
+      </Waves>
+    </Sound>
   </Sounds>
 </Definitions>

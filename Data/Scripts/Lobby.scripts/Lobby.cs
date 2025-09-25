@@ -119,6 +119,7 @@ namespace Lobby.scripts
 
         MyEntity3DSoundEmitter emitter;
         readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
+        readonly MySoundPair WoopSoundPair = new MySoundPair("WoopWoop");
 
         /// <summary>
         ///     Quick check to see if the script is trying to run server side.
@@ -606,7 +607,7 @@ namespace Lobby.scripts
                                 //if this is a popup lcd and popups are enabled show the message
                                 //if ((AllowStationPopupLCD || (AllowAdminStationPopup && LCDOwnedByAdmin(textPanel))) && str.Equals("popup", StringComparison.InvariantCultureIgnoreCase))
                                 {
-                                    MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Warning", popup, null, "Close");
+                                    MyAPIGateway.Utilities.ShowMissionScreen("Station", "", "Notice", popup, null, "Close");
                                     seenPopup = true;
                                     lastStationId = textPanel.EntityId; // Track this station
                                 }
@@ -629,26 +630,35 @@ namespace Lobby.scripts
                 //If no warnings are in current location clear the seen flag.
                 //This will also suppress popups if you just saw a station or claim popup, but still show a warning in chat.
                 //Potentially may be worth letting multiple trigger in the case of nested warnings eg 100km caution, 50km warning, final 10km goodbye message
-                
-                //Need to add a sound effect for this, maybe also check for Draygo HUD API and use that instead/too
+
+                //May be worth spawning a GPS point in red text too? Or would that be better as some other feature? Such as creating GPS points
+                //for important POIs like planets?
                 bool ClearSeenState = true;   //Default that we didn't just see a warning, so safe to clear seenPopup
+                int haznumber = 0;
                 foreach (var warning in navigationWarnings)
                 {
+                    haznumber++;
                     if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
-                    {
+                    {                        
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#Z{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
                         MyAPIGateway.Utilities.ShowMissionScreen("Navigation", "", "Warning", warning.Message, null, "Close");
+                        StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.4f);
                         seenPopup = true; //no other popups recently shown except this one 
                         ClearSeenState = false;
                         //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Navigation warning triggered: {warning.Message}");
-                        break; // Only show one at a time (Disable if need to show multiple)
+                        //break; // Only show one at a time (Disable if need to show multiple)
                     }
                     else if (seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
                     {
+                        //I can probably disable this one, if they saw the popup already likely already created one, but
+                        //in edge cases where a station popup is within a warning zone  it might not create the gps
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#Z{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
                         //popups recently seen somewhere so just use a less annoying chat warning this time.                        
-                        MyAPIGateway.Utilities.ShowMessage("Navigation", $"Warning: {warning.Message}");
+                        MyAPIGateway.Utilities.ShowMessage("Navigation", $"***WARNING***: !!{warning.Message}!!");
+                        StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.2f);
                         ClearSeenState = false;
-                        break;  // Only show one at a time (Disable if need to show multiple)
-                    }      
+                        //break;  // Only show one at a time (Disable if need to show multiple)
+                    }
                 }
 
                 // Process [destination] LCDs if allowed
@@ -704,7 +714,7 @@ namespace Lobby.scripts
                     */
                 }
 
-              
+
 
                 // Reset flags if no LCDs or boundaries detected
                 // checking updatelist.count may be redundant as we would have already returned if there was any exits
@@ -734,6 +744,51 @@ namespace Lobby.scripts
             //fell through a hole
             return false;
         }
+
+        /// <summary.
+        ///     Create or destroy a GPS point
+        /// </summary>
+        public static void GPS(double x, double y, double z, string name, string description, bool create)
+        {
+            //make a gps point for the objective.  eg GPS(x,y,z,name,description,true)
+            //remove an existing GPS point  eg GPS(x,y,z,name,description,false)
+            //Helps Automate process for creating/removing investigate/mine here/kill this/destroy/repair/etc missions markers
+
+            //ye not sure how to assign this as the initialised value in a vector need help :) this is my work around
+            Vector3D location = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
+            location.X = x; location.Y = y; location.Z = z;
+
+            //make sure it doesn't already exist
+            bool AlreadyExists = false;
+            var list = MyAPIGateway.Session.GPS.GetGpsList(MyAPIGateway.Session.Player.IdentityId);
+            foreach (var gps in list)
+            {
+                if (gps.Description == description && gps.Name == name && gps.Coords == location)
+                {
+                    AlreadyExists = true;
+                }
+            }
+
+            if (create && !AlreadyExists)
+            {  //make a new GPS
+                var gps = MyAPIGateway.Session.GPS.Create(name, description, location, true, false);
+                //gps.DisplayColor = Color.Red; // Set to red
+                MyAPIGateway.Session.GPS.AddGps(MyAPIGateway.Session.Player.IdentityId, gps);
+            }
+            else if (!create)
+            { //remove a GPS if create is not true 
+                //reinitialise list after scanning
+                list = MyAPIGateway.Session.GPS.GetGpsList(MyAPIGateway.Session.Player.IdentityId);
+                foreach (var gps in list)
+                {
+                    if (gps.Description == description || gps.Name == name || gps.Coords == location)
+                    {
+                        MyAPIGateway.Session.GPS.RemoveGps(MyAPIGateway.Session.Player.IdentityId, gps);
+                    }
+                }
+            }
+        }
+
 
         /// <summary>
         ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
@@ -887,6 +942,8 @@ namespace Lobby.scripts
             {
                 if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase))
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
+                else if (split[1].Equals("sound2", StringComparison.InvariantCultureIgnoreCase))
+                { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); }
                 else if (split[1].Equals("debug", StringComparison.InvariantCultureIgnoreCase))
                 {
                     //Init(); // Force re-initialization (lets not)
