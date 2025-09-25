@@ -268,7 +268,8 @@ too but the above are the most important options.
 Navigation Warnings
 *******************
 Navigation warnings are admin created popup warning messages tied to a particular position
-in space, and a defined radius around it.
+in space, and a defined radius around it.  If a Player enters one of these hazard zones
+it displays a warning, generates a GPS point, and plays an alert tone.
 
 To use this features, open your configuration editor with /Ledit and look for the 
 [Navigation Warnings]  heading.
@@ -279,7 +280,10 @@ x,y,z radius warning message
 example:
 1000,222,11111 15000 danger black hole
 
-enter your navigation hazards location then use /lsave to record it.
+Enter your navigation hazards location then use /lsave to record it.
+
+You can copy and paste the x y and z fields from a GPS point to get the correct location.
+
 
 -
 
