@@ -639,7 +639,7 @@ namespace Lobby.scripts
                 {
                     haznumber++;
                     if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
-                    {                        
+                    {
                         GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#Z{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
                         MyAPIGateway.Utilities.ShowMissionScreen("Navigation", "", "Warning", warning.Message, null, "Close");
                         StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.4f);
@@ -840,10 +840,18 @@ namespace Lobby.scripts
             #region editconfig
             if (split[0].Equals("/lconfig", StringComparison.InvariantCultureIgnoreCase))
             {
-                // MyAPIGateway.Utilities.ShowMessage("Config", ShowConfigSummary());
-                ShowConfigSummary(out reply);
-                MyAPIGateway.Utilities.ShowMessage("Config", reply);
-                return true;
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+                    return false;
+                }
+                else
+                {
+                    // MyAPIGateway.Utilities.ShowMessage("Config", ShowConfigSummary());
+                    ShowConfigSummary(out reply);
+                    MyAPIGateway.Utilities.ShowMessage("Config", reply);
+                    return true;
+                }
             }
 
             if (split[0].Equals("/ledit", StringComparison.InvariantCultureIgnoreCase))
@@ -944,7 +952,14 @@ namespace Lobby.scripts
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
                 else if (split[1].Equals("sound2", StringComparison.InvariantCultureIgnoreCase))
                 { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); }
-                else if (split[1].Equals("debug", StringComparison.InvariantCultureIgnoreCase))
+
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+                    return false;
+                }
+
+                if (split[1].Equals("debug", StringComparison.InvariantCultureIgnoreCase))
                 {
                     //Init(); // Force re-initialization (lets not)
                     UpdateLobby(true); // Debug output
@@ -1022,17 +1037,28 @@ namespace Lobby.scripts
             // help command
             if (split[0].Equals("/lhelp", StringComparison.InvariantCultureIgnoreCase))
             {
+                //dirty check if they are admin
+                bool IamTheBoss = false;
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                { IamTheBoss = false; }
+                else
+                { IamTheBoss = true; }
+
                 if (split.Length <= 1)
                 {
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Commands: lhelp, depart, ver, ltest");
-                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Admin Commands: ledit, lsave"); //these should only show to admins later
-                    MyAPIGateway.Utilities.ShowMessage("Lhelp", "Features: popup, destination, interstellar");
+
+                    if (IamTheBoss) MyAPIGateway.Utilities.ShowMessage("Lhelp", "Admin Commands: ledit, lsave"); //these should only show to admins
+                    reply = "Features: popup, destination";
+                    if (IamTheBoss) { reply = reply + ",interstellar, navigation"; } //also admin only things
+                    MyAPIGateway.Utilities.ShowMessage("Lhelp", reply);
+
                     MyAPIGateway.Utilities.ShowMessage("Lhelp", "Try '/Lhelp command/feature' for more informations about specific items.");
                     return true;
                 }
                 else
                 {
-                    //string helpreply = "";
+                   
                     switch (split[1].ToLowerInvariant())
                     {
                         case "lconfig":
@@ -1077,13 +1103,23 @@ namespace Lobby.scripts
                             return true;
                         case "ltest":
                             reply = "Simple debug tool for testing the mod scanner/sound subs\r\n" +
-                                "'sound' test plays the jump sound without jumping.\r\n" +
-                                "no parameter runs a scan test of nearby objects and halts sounds.\r\n" +
-                                "'init' reruns initialisation to debug sync issues.\r\n" +
-                                "Note: some or all of these may be removed or disabled.\r\n" +
-                                "parameters: nothing, sound, init";
-                            MyAPIGateway.Utilities.ShowMessage("LHelp", "Example: /ltest or /ltest sound or /ltest init"); //should also be admin only
-                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "test command", reply, null, "Close");
+                                "'sound' or 'sound2' test plays the sound effects.\r\n" +
+                                "no parameter runs a scan test of nearby objects and halts sounds.\r\n";
+                            if (IamTheBoss)
+                            {
+                                reply += "'debug' shows various verbose debug outputs.\r\n" +
+                                    "'reset' overwrites the Lobby server side configuration\r\n" +
+                                    "with defaults. Handy if new features added after mod update.\r\n" +
+                                    "Be Sure to note any important settings with /lconfig or /ledit\r\n" +
+                                    "before reset, so you can add them again.\r\n" +
+                                    "Note: some or all of these may be removed or disabled" +
+                                    "depending on server settings.\r\n";
+                            }
+                            reply += "parameters: nothing, sound, sound2";
+                            if (IamTheBoss) reply += ", debug, reset";
+                            reply+= "\r\nLHelp Example: /ltest or /ltest sound or /ltest sound2";
+                            if (IamTheBoss) reply += " or /ltest debug or /ltest reset"; //should also be admin only
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ltest command", reply, null, "Close");
                             return true;
                         case "popup":
                             reply = "Displays a popup message to players when they \r\napproach your ship or station. \r\n" +
@@ -1100,10 +1136,19 @@ namespace Lobby.scripts
                         case "interstellar":
                             reply = "The boundry of interstellar space in your region. \r\n" +
                                         "Crossing it players can travel to a server/sector\r\ndefined in that direction.\r\nThis is usually configured by game admin.\r\n" +
-                                        "Depending on settings you will need to type /depart \r\nto travel. Boundries are usually \r\naround 1000 Kms from centre of map but may vary by server.\r\nThere can be up to 6 directions defined.\r\n\r\n" +
+                                        "Depending on settings you will need to type /depart \r\nto travel. Boundries default to \r\naround 150000 Kms from centre of map but may vary by server.\r\nThere can be up to 6 directions defined.\r\n\r\n" +
                                         "If you are a server admin, refer to the workshop page.\r\n" +
                                         "But to summarise imagine the map as a cube, each side\r\n" +
                                         "is a different server you could travel to.";
+                            MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", reply, null, "Close");
+                            return true;
+                        case "navigation":
+                            reply = "A set of x y z locations in the /ledit configuration " +
+                                "\r\nunder [navigation warnings] heading that will popup " +
+                                "\r\na warning if a player gets near them, generate a gps" +
+                                "\n\rand play an alert every 15 seconds until they leave." +
+                                "\r\nformat: x,y,z radius(in metres) Alert Message." + 
+                                "\r\nExample: 1234,10000,30000 20000 Danger black hole over here.";
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", reply, null, "Close");
                             return true;
                         default:
