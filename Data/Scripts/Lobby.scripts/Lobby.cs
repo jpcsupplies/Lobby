@@ -772,7 +772,7 @@ namespace Lobby.scripts
             if (create && !AlreadyExists)
             {  //make a new GPS
                 var gps = MyAPIGateway.Session.GPS.Create(name, description, location, true, false);
-                //gps.DisplayColor = Color.Red; // Set to red
+                gps.GPSColor = Color.Red; // Set to red
                 MyAPIGateway.Session.GPS.AddGps(MyAPIGateway.Session.Player.IdentityId, gps);
             }
             else if (!create)
