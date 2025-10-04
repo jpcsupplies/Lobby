@@ -121,7 +121,7 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.52 (+Navigations Warnings)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.53 (+Global GPS)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
