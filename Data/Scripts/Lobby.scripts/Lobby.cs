@@ -3,14 +3,14 @@
  *  by PhoenixX (JPC Dev)
  *  For use with Space Engineers Game
  *  Todo: 
- *  instant transfers,  (not urgent)
- *  navigation warnings, (could be fun)
+ *  instant transfers,  (not happening causes crashes)
+ *  navigation warnings, (done)
  *  warning approaching interstellar space warning @ 1000 metres (could be fun)
- *  ability to totally disable departure or interstellar prompts etc.
+ *  ability to totally disable departure or interstellar prompts etc. (done)
  *  Move depart notifications optionally to use Draygo text hud API mod (767740490) instead of chat. (could be fun)
  *  ship server transfers (help!), 
- *  save/loading settings/destinations server side to prevent player abuse, and only allow admins to link servers - replaces all but navigation/dock/territory and popup LCDs (help!)
- *  configurable interstellar boundry points (they are static at 1000kms currently) (needs save/loading first)
+ *  save/loading settings/destinations server side (partial)
+ *  configurable interstellar boundry points (they are static at 1000kms currently) (done)
  *  a way to notify owners of a visitor at their station popup (might be fun)
  *  Economy(504209260) API: permission to dock - configurable public/private connectors, guns off/on etc for a fee (need Economy api, may be interesting)
  *  Economy(504209260) API: faction territory, entry taxes, GPS indicators etc (Need Economy API)
@@ -66,6 +66,16 @@ namespace Lobby.scripts
         [ProtoMember(4)] public double Radius;
         [ProtoMember(5)] public string Message;
     }
+    [ProtoContract]
+    public class GlobalGPS
+    {
+        [ProtoMember(1)] public double X;
+        [ProtoMember(2)] public double Y;
+        [ProtoMember(3)] public double Z;
+        [ProtoMember(4)] public string ColorName; // e.g., "Lime"
+        [ProtoMember(5)] public string Name; // Quoted name, e.g., "Mars"
+        [ProtoMember(6)] public string Description; // Remaining text, e.g., "Planet Mars"
+    }
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
@@ -109,12 +119,13 @@ namespace Lobby.scripts
         public string GDD = "Galactic Down";  // -Z
         public string GUD = "Galactic Up";  // +Z
 
-        private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for warnings
+        private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
+        private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
         private const string MyVerReply = "Gateway Lobby 3.52 (+Navigations Warnings)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
-        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n";
+        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         private List<Destination> serverDestinations = new List<Destination>();
 
         MyEntity3DSoundEmitter emitter;
@@ -624,6 +635,18 @@ namespace Lobby.scripts
                     // this was here for a reason but debug code not using it atm. else { break; }
                 }
 
+                //Check if player has all the admin defined GPS points
+                foreach (var gpsPoint in globalGPS)
+                {
+                    var coords = new Vector3D(gpsPoint.X, gpsPoint.Y, gpsPoint.Z);
+                    // if (Vector3D.Distance(position, coords) <= 1000.0)
+                    //{
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am spawning a [GPS]");
+                    GPS(gpsPoint.X, gpsPoint.Y, gpsPoint.Z, gpsPoint.Name, gpsPoint.Description, true, gpsPoint.ColorName);
+                    // }
+                }
+                
+
                 //[Navigation Warnings] logic
                 //If it is first time pop up warning; set seen flag
                 //If it is second time only show console message
@@ -660,6 +683,8 @@ namespace Lobby.scripts
                         //break;  // Only show one at a time (Disable if need to show multiple)
                     }
                 }
+
+
 
                 // Process [destination] LCDs if allowed
                 if (AllowDestinationLCD)
@@ -748,7 +773,7 @@ namespace Lobby.scripts
         /// <summary.
         ///     Create or destroy a GPS point
         /// </summary>
-        public static void GPS(double x, double y, double z, string name, string description, bool create)
+        public static void GPS(double x, double y, double z, string name, string description, bool create, string colour = "Red")
         {
             //make a gps point for the objective.  eg GPS(x,y,z,name,description,true)
             //remove an existing GPS point  eg GPS(x,y,z,name,description,false)
@@ -758,6 +783,8 @@ namespace Lobby.scripts
             Vector3D location = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
             location.X = x; location.Y = y; location.Z = z;
 
+            //MyAPIGateway.Utilities.ShowMessage("Lobby", $"I see [GPS] at {x},{y},{z} Called: {name} Details {description} Tint:{colour}");
+
             //make sure it doesn't already exist
             bool AlreadyExists = false;
             var list = MyAPIGateway.Session.GPS.GetGpsList(MyAPIGateway.Session.Player.IdentityId);
@@ -765,6 +792,7 @@ namespace Lobby.scripts
             {
                 if (gps.Description == description && gps.Name == name && gps.Coords == location)
                 {
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", "[GPS] Already Exists");
                     AlreadyExists = true;
                 }
             }
@@ -772,12 +800,15 @@ namespace Lobby.scripts
             if (create && !AlreadyExists)
             {  //make a new GPS
                 var gps = MyAPIGateway.Session.GPS.Create(name, description, location, true, false);
-                gps.GPSColor = Color.Red; // Set to red
+                //gps.GPSColor = Color.Red; // Set to red
+                gps.GPSColor = GetColorFromString(colour);
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am spawning [GPS]");
                 MyAPIGateway.Session.GPS.AddGps(MyAPIGateway.Session.Player.IdentityId, gps);
             }
             else if (!create)
             { //remove a GPS if create is not true 
-                //reinitialise list after scanning
+              //reinitialise list after scanning
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am removing [GPS]");
                 list = MyAPIGateway.Session.GPS.GetGpsList(MyAPIGateway.Session.Player.IdentityId);
                 foreach (var gps in list)
                 {
@@ -787,8 +818,37 @@ namespace Lobby.scripts
                     }
                 }
             }
+            //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am returning from GPS()");
         }
 
+        private static Color GetColorFromString(string colour)
+        {
+            switch (colour.ToLower())
+            {
+                case "red":
+                    return Color.Red;
+                case "green":
+                    return Color.Green;
+                case "blue":
+                    return Color.Blue;
+                case "yellow":
+                    return Color.Yellow;
+                case "lime":
+                    return Color.Lime;
+                case "orange":
+                    return Color.Orange;
+                case "purple":
+                    return Color.Purple;
+                case "white":
+                    return Color.White;
+                case "black":
+                    return Color.Black;
+                case "cyan":
+                    return Color.Cyan;
+                default:
+                    return Color.Red; // Fallback
+            }
+        }
 
         /// <summary>
         ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
@@ -1417,11 +1477,14 @@ namespace Lobby.scripts
             navigationWarnings.Clear(); // Clear warnings list
             var lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
             bool inNavigationWarnings = false;
+            bool inGlobalGPS = false;
 
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
 
+                
+               
                 //Nav warning logic
                 if (trimmed.StartsWith("[Navigation Warnings]"))
                 {
@@ -1436,7 +1499,7 @@ namespace Lobby.scripts
                 {
                     // Parse "x,y,z radius message"
                     var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 5)
+                    if (parts.Length >= 3)
                     {
                         string coords = parts[0];
                         string radiusStr = parts[1];
@@ -1457,6 +1520,61 @@ namespace Lobby.scripts
                                 Z = z,
                                 Radius = radius,
                                 Message = message
+                            });
+                        }
+                    }
+                }
+
+                //global GPS logic
+                if (trimmed.StartsWith("[GPS]"))
+                {
+                    inGlobalGPS = true;
+                    // debug message MyAPIGateway.Utilities.ShowMessage("Lobby", "I see [GPS]");
+                    continue;
+                }
+                else if (inGlobalGPS && trimmed.StartsWith("[") && !trimmed.StartsWith("[GPS]"))
+                {
+                    inGlobalGPS = false; // End section
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", "I DONT see [GPS]");
+                }
+                else if (inGlobalGPS && trimmed.Length > 0)
+                {
+                    // Parse "x,y,z color "name" description"
+                    var quoteParts = trimmed.Split(new[] { '"' }, StringSplitOptions.RemoveEmptyEntries);
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    string quotedName = ""; //declare here so we can use it in if/else later without scope/undef error
+                    string description = "Server GPS Point"; //Default Description for lazy admins.
+
+                    if (parts.Length >= 3)
+                    {
+                        //MyAPIGateway.Utilities.ShowMessage("Lobby", "I see [GPS] settings");
+                        string coords = parts[0];
+                        string colorName = parts[1];
+                        //if we have at least a quoted gps name use that for name, regardless of if they included a long description
+                        if (quoteParts.Length >= 2) { quotedName = quoteParts[1]; } else { quotedName = parts[2]; }
+                        if (parts.Length >= 3) description = string.Join(" ", parts.Skip(3));
+
+                        //never actually runs now since any " prevent " making it into quotedName to remove
+                        //if (quotedName.StartsWith("\"") && quotedName.EndsWith("\""))
+                        //{
+                        //   quotedName = quotedName.Substring(1, quotedName.Length - 2); // Remove quotes
+                        //}
+
+                        var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        double x, y, z;
+                        if (coordParts.Length == 3 && double.TryParse(coordParts[0], out x) &&
+                            double.TryParse(coordParts[1], out y) &&
+                            double.TryParse(coordParts[2], out z))
+                        {
+                            //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am adding [GPS] to list");
+                            globalGPS.Add(new GlobalGPS
+                            {
+                                X = x,
+                                Y = y,
+                                Z = z,
+                                ColorName = colorName,
+                                Name = quotedName,
+                                Description = description
                             });
                         }
                     }
@@ -1616,8 +1734,10 @@ namespace Lobby.scripts
             }
 
             // Update globals with CubeSize
-            SetExits();
+            SetExits();            
         }
+
+
 
         private string GetDefaultDescription(string networkName)
         {

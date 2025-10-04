@@ -19,6 +19,7 @@ Contents in this document:
 	'Interstellar Space Boundry'
 		'How to use this feature'
 	'Navigation Warnings'
+	'Global Server Wide GPS Points'
 	
 'Other Configuration options'
 	'AllowDestinationLCD'
@@ -269,7 +270,8 @@ Navigation Warnings
 *******************
 Navigation warnings are admin created popup warning messages tied to a particular position
 in space, and a defined radius around it.  If a Player enters one of these hazard zones
-it displays a warning, generates a GPS point, and plays an alert tone.
+it displays a warning, generates a GPS point, and plays an alert tone until they leave the
+area.
 
 To use this features, open your configuration editor with /Ledit and look for the 
 [Navigation Warnings]  heading.
@@ -277,13 +279,41 @@ To use this features, open your configuration editor with /Ledit and look for th
 Below this heading you can enter 4 values and a warning message. 
 x,y,z radius warning message
 
+Radius is a figure (in metres) so 1000 is equal to 1km
+
 example:
-1000,222,11111 15000 danger black hole
+[Navigation Warnings]
+-341000,24422,11111 80000 danger black hole
 
 Enter your navigation hazards location then use /lsave to record it.
 
 You can copy and paste the x y and z fields from a GPS point to get the correct location.
 
+*****************************
+Global Server Wide GPS Points
+*****************************
+Global Server Wide GPS Points are definable GPS entries that are automatically given to all 
+players.  Examples might include where all the planets are, or where important locations like trade
+or travel hubs/stations are located or special locations like exit points or mining facilities
+ore locations, asteroids; whatever the server admin wants or needs.
+
+To use this feature, open your configuration editor (or manually edit the config file in the map
+storage folder)  and add your Global GPS points under the [GPS] header in the format:
+x,y,z colour "GPS Name" Detailed GPS Description.
+
+An easy way to insert GPS points: On an empty line, Paste in a gps from your own gps list then 
+replace the : with , key in a colour then add a "name" and optionally a description.
+
+Examples to add all the default planet locations:
+[GPS]
+0,0,0 blue "Earthlike" Earth Centre of the map
+16384,136384,-113615 gray "Moon" The Moon
+1031072,131072,1631072 yellow "Mars" The red planet
+916384,16384,1616384 cyan "Europa"  The Ice Planet
+131072,131072,5731072 green "Alien Ganymede" The alien xeno planet
+36384:226384:5796384 gray "Titan" moonlet Titan.
+-284463,-2434463,365536 lime "Triton" moonlet Triton
+-3967232,-32232,-767232 yellow "Pertam" The sandy planet of Pertram
 
 -
 
@@ -389,7 +419,11 @@ To increase compatability with non-english keyboards you can use [ ]  or ( ) in 
 For Interstellar Space definitions, each exit prefix is already populated, so () does not
 work since you just type your address after it.
 
-Other options may be added later such as:
+Navigation Hazards may be expanded later to have a "type" which might actively generate 
+hazards (eg minefield, warzone, radiation, nanites, hostileAI, blackhole etc) but 
+currently are informational only, requiring an admin to actively add a hazard manually.
+
+Other options (related to what you carry between servers) may be added later such as:
 Travel options: Allow Ship, Allow Inventory, Allow Faction, Allow Buffs, 
 Allow bank balance.
 General options: Enable Visuals, Enable lottery etc. depending what features we 
