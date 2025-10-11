@@ -76,10 +76,10 @@
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Audio.dll</HintPath>
     </Reference>
     <Reference Include="VRage.Render">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Audio.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Render.dll</HintPath>
     </Reference>
     <Reference Include="VRage.Game">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Render.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Game.dll</HintPath>
     </Reference>
     <Reference Include="VRage.Library">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Library.dll</HintPath>
