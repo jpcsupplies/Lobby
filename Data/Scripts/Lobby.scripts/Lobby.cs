@@ -18,34 +18,34 @@
  *  Note to self use Ctrl + K, Ctrl + D to for re-tabbing globally
 */
 
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Text.RegularExpressions;
-    using System.Timers;
-    using Sandbox.Game.Entities;
-    using Sandbox.ModAPI;
-    using VRage;
-    using VRage.Game;
-    using VRage.Game.ModAPI;
-    //using VRage.Game.ModAPI.Ingame;
-    using VRage.ModAPI;
-    using VRage.Audio;
-    using VRage.Game.Components;
-    using VRage.Game.ObjectBuilders;
-    using VRage.Game.ObjectBuilders.Definitions;
-    using VRage.ObjectBuilders;
-    using VRageMath;
-    //using System.Globalization;
-    //using System.IO;
-    using Sandbox.Common;
-    using Sandbox.Common.ObjectBuilders;
-    using Sandbox.Common.ObjectBuilders.Definitions;
-    using Sandbox.Definitions;
-    using Sandbox.Game.EntityComponents;
-    using VRage.Game.Entity;
-    using ProtoBuf;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Timers;
+using Sandbox.Game.Entities;
+using Sandbox.ModAPI;
+using VRage;
+using VRage.Game;
+using VRage.Game.ModAPI;
+//using VRage.Game.ModAPI.Ingame;
+using VRage.ModAPI;
+using VRage.Audio;
+using VRage.Game.Components;
+using VRage.Game.ObjectBuilders;
+using VRage.Game.ObjectBuilders.Definitions;
+using VRage.ObjectBuilders;
+using VRageMath;
+//using System.Globalization;
+//using System.IO;
+using Sandbox.Common;
+using Sandbox.Common.ObjectBuilders;
+using Sandbox.Common.ObjectBuilders.Definitions;
+using Sandbox.Definitions;
+using Sandbox.Game.EntityComponents;
+using VRage.Game.Entity;
+using ProtoBuf;
 
 namespace Lobby.scripts
 {
@@ -689,7 +689,7 @@ namespace Lobby.scripts
                     if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
                     {
                         if (warning.Type == "Radiation") Radioactive = true;
-                            GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
                         MyAPIGateway.Utilities.ShowMissionScreen("Navigation Warning", $"[{typeCode}] ", warning.Type, warning.Message, null, "Close");
                         StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.4f);
                         seenPopup = true; //no other popups recently shown except this one 
@@ -735,8 +735,24 @@ namespace Lobby.scripts
                             damage *= 0.5f; // Halve in center for anomaly
                         }
 
-                        // Apply radiation damage (simple overload)
-                        //MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
+                        // Apply radiation damage 
+                        //This code almost works, and needs to be run server side once I get it working
+                        //single player.
+                        /*
+                        var player = MyAPIGateway.Session.Player;
+                        var character = player.Character;
+                        var comptest = character.Components.Get<MyCharacterStatComponent>();
+                        
+                        //Definately broken: MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
+                        */
+
+                        /*
+                         * Digi Suggests: to add radiation you need a few steps:
+                         * var comp = character.Components.Get<MyCharacterStatComponent>();
+                         * and nullcheck.
+                         * then it has `Radiation` property in it, deeper it has `Value` that can be read or set.
+                         * Need to look into this more when brain not broken.
+                         */
 
                         MyAPIGateway.Utilities.ShowMessage("Debug", $"You would have taken {damage} radiation damage.");
 
