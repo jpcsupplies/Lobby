@@ -128,10 +128,31 @@ namespace Lobby.scripts
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         private List<Destination> serverDestinations = new List<Destination>();
 
+        //sound effects system
         private Timer soundTimer; // For repeating sound bursts
         MyEntity3DSoundEmitter emitter;
+        //private MyEntity3DSoundEmitter lastEmitter; // Track last for interrupt
+        //private List<MyEntity3DSoundEmitter> radiationEmitters = new List<MyEntity3DSoundEmitter>(); // Track emitters
         readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
         readonly MySoundPair WoopSoundPair = new MySoundPair("WoopWoop");
+        readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
+
+
+        readonly MySoundPair SoundTest = new MySoundPair("ArcHudVocRadiationImmunityLow"); //for /ltest sound0 tests
+        /*
+                    * A few interesting Sound IDs
+                    * RealHudVocSolarInbound  solar wind voice warning (uses speech engine, no good)
+                    * HudClick
+                    * HudMouseClick
+                    * ArcNewItemImpact
+                    * RealNewItemImpact
+                    * ArcHudBleep
+                    * ArcHudQuestlogDetail
+                    * ArcHudVocRadiationImmunityLow
+                    * ArcHudVocRadiationCritical
+                    * 
+
+                   */
 
         /// <summary>
         ///     Quick check to see if the script is trying to run server side.
@@ -646,7 +667,7 @@ namespace Lobby.scripts
                     GPS(gpsPoint.X, gpsPoint.Y, gpsPoint.Z, gpsPoint.Name, gpsPoint.Description, true, gpsPoint.ColorName);
                     // }
                 }
-                
+
 
                 //[Navigation Warnings] logic
                 //If it is first time pop up warning; set seen flag
@@ -809,7 +830,7 @@ namespace Lobby.scripts
             else if (!create)
             { //remove a GPS if create is not true 
               //reinitialise list after scanning
-                //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am removing [GPS]");
+              //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am removing [GPS]");
                 list = MyAPIGateway.Session.GPS.GetGpsList(MyAPIGateway.Session.Player.IdentityId);
                 foreach (var gps in list)
                 {
@@ -1111,26 +1132,29 @@ namespace Lobby.scripts
 
         /// <summary>
         ///     Triggers the specified sound ID this can be from an audio spc or possibly in-game vanilla sounds if id known.
-        ///     Developed with assistance of Digi
+        ///     Original PLaysound() Developed with assistance of Digi
         /// </summary>
+        #region Audio
         void PlaySound(MySoundPair soundPair, float volume = 1f)
         {
             var controlled = MyAPIGateway.Session?.ControlledObject?.Entity;
 
             if (controlled == null)
                 return; // don't continue if session is not ready or player does not control anything.
-
+                   
             if (emitter == null)
                 emitter = new MyEntity3DSoundEmitter((MyEntity)controlled);
             else
                 emitter.Entity = (MyEntity)controlled;
 
             emitter.CustomVolume = volume;
+            //emitter.StopSound(true); // Clear prior (disable if issues occur)
             emitter.PlaySingleSound(soundPair);
             //emitter.Cleanup();
+            
         }
 
-        void StopLastPlayedSound()
+        void StopLastPlayedSound(bool stopTimer = true)
         {
             //emitter?.StopSound(false); false would instead fade out sound
             if (emitter != null)
@@ -1138,15 +1162,61 @@ namespace Lobby.scripts
                 emitter.StopSound(true); // Force immediate stop
                 emitter = null; // Clear reference
             }
-            if (soundTimer != null)
+            if (stopTimer && soundTimer != null)
             {
                 soundTimer.Stop();
                 //soundTimer.Dispose();
                 soundTimer = null;
             }
         }
+        /// <summary>
+        /// This lets us play the radiation sound.
+        /// Shorter intervals / quieter makes it seem less urgent
+        /// Medium intervals play a medium speed ticking
+        /// Longer intervals / louder allow it to play the full sound file and sound urgent
+        /// Radiation file itself is 3 seconds long.  
+        /// </summary>
+        /// <param name="intervalSeconds"></param>   
+        /// <param name="volume"></param>
+
+        private void PlayRadiationTicks(double intervalSeconds = 3, float volume = 0.4f)
+        {
+            // Optional volume (0.0-2.0)
+            if (volume < 0) volume = 0f;
+            if (volume > 2) volume = 2f;
+
+            // No interval below 0.05 seconds or above 3 seconds
+            if (intervalSeconds < 0.05) intervalSeconds = 0.05;
+            if (intervalSeconds > 3) intervalSeconds = 3.0;
 
 
+            if (soundTimer != null)
+            {
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Hey we are clearing Last sound");
+                StopLastPlayedSound(true); // Clear prior timer
+            }
+            //MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Entering Radiation sound module");
+
+            //Start the sound playing.
+            PlaySound(Radiation, volume);
+
+            soundTimer = new Timer((int)(intervalSeconds * 1000)); // ms converted to seconds
+
+            //Wait interval to let it play before interrupting
+            //This in effect works like its own thread.. so we can multitask. Hopefully.
+            soundTimer.Elapsed += (s, e) =>
+            {
+                StopLastPlayedSound(false); //interrupt sound but not timer
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: End of radiation play");
+                //We finished our repeat count. Lets stop the timer.
+                soundTimer.Stop();
+                soundTimer = null;
+            };
+            soundTimer.AutoReset = false; // One-shot per Start()
+            soundTimer.Start(); //Start up the timer loop
+        }
+
+        #endregion Audio
 
 
         #region command list
@@ -1273,15 +1343,18 @@ namespace Lobby.scripts
             //This tests scan results and displays what the mod see's
             if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase) && split.Length > 1)
             {
-                if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase)) //server jump/frameshift sound
+                if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase) || split[1].Equals("sound1", StringComparison.InvariantCultureIgnoreCase)) //server jump/frameshift sound
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
                 else if (split[1].Equals("sound2", StringComparison.InvariantCultureIgnoreCase)) //woop woop alert siren
-                { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); } 
+                { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); }
+                else if (split[1].Equals("sound0", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
+                {
+                    StopLastPlayedSound(); PlaySound(SoundTest, 2f);  //edit sound id in global declarations                  
+                }
                 else if (split[1].Equals("sound3", StringComparison.InvariantCultureIgnoreCase)) //radiation tick sound
                 {
                     float volume = 0.5f; // Default quiet
-                    int repeats = 5; // Default short burst
-                    double interval = 0.2; //Default 0.2 tick
+                    double interval = 3; //Default 3 sec
 
                     if (split.Length > 2 && float.TryParse(split[2], out volume))
                     {
@@ -1289,53 +1362,23 @@ namespace Lobby.scripts
                         if (volume < 0) volume = 0f;
                         if (volume > 2) volume = 2f;
                     }
-                    if (split.Length > 3 && int.TryParse(split[3], out repeats))
+
+                    if (split.Length > 3 && double.TryParse(split[3], out interval))
                     {
-                        // Optional repeats (1-20)
-                        if (repeats < 1) repeats = 1;
-                        if (repeats > 20) repeats = 20;
-                    }
-                    if (split.Length > 4 && double.TryParse(split[4], out interval))
-                    {
-                        // No interval below 0.05 seconds or above 1.0 seconds
+                        // No interval below 0.05 seconds or above 3 seconds
                         if (interval < 0.05) interval = 0.05;
-                        if (interval > 1.0) interval = 1.0;
-                        //interval = Math.Max(0.05, Math.Min(1.0, interval)); // Clamp 0.05-1.0s
+                        if (interval > 3) interval = 3.0;
+                        //interval = Math.Max(0.05, Math.Min(3.0, interval)); // Clamp 0.05-3.0s same as above but unfriendly to read.
                     }
 
-                    var radiationSound = new MySoundPair("RadiationTick");
-                    soundTimer = new Timer((int)(interval * 1000)); // ms
-                    int remainingRepeats = repeats;
-                    soundTimer.Elapsed += (s, e) =>
-                    {
-                        StopLastPlayedSound();
-                        PlaySound(radiationSound, volume);
-                        remainingRepeats--;
-                        if (remainingRepeats <= 0)
-                        {
-                            soundTimer.Stop();
-                            //soundTimer.Dispose();
-                            soundTimer = null;
-                            MyAPIGateway.Utilities.ShowMessage("Lobby", "RadiationTick burst complete");
-                        }
-                    };
-                    soundTimer.AutoReset = true;
-                    soundTimer.Start();
-
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"RadiationTick test started: Volume {volume}, Repeats {repeats}, Interval {interval}s");
-
-                    /*for (int i = 0; i < repeats; i++)
-                    {
-                        StopLastPlayedSound();
-                        PlaySound(radiationSound, volume);
-                        System.Threading.Thread.Sleep(200); // 0.2s interval for ticking effect
-                    } */
-                    //MyAPIGateway.Utilities.ShowMessage("Lobby", $"RadiationTick test: Volume {volume}, Repeats {repeats}");
-                    return true;
+                    //StopLastPlayedSound();  //PlaySound(Radiation, volume);
+                    PlayRadiationTicks(interval, volume);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"RadiationTick test started: Volume {volume}, Interval {interval}s");
+                    return true;  //suppresses echo back in chat
                 }
-            
 
-            if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
                 {
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
                     return false;
@@ -1440,7 +1483,7 @@ namespace Lobby.scripts
                 }
                 else
                 {
-                   
+
                     switch (split[1].ToLowerInvariant())
                     {
                         case "lconfig":
@@ -1499,7 +1542,7 @@ namespace Lobby.scripts
                             }
                             reply += "parameters: nothing, sound, sound2";
                             if (IamTheBoss) reply += ", debug, reset";
-                            reply+= "\r\nLHelp Example: /ltest or /ltest sound or /ltest sound2";
+                            reply += "\r\nLHelp Example: /ltest or /ltest sound or /ltest sound2";
                             if (IamTheBoss) reply += " or /ltest debug or /ltest reset"; //should also be admin only
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "ltest command", reply, null, "Close");
                             return true;
@@ -1529,7 +1572,7 @@ namespace Lobby.scripts
                                 "\r\nunder [navigation warnings] heading that will popup " +
                                 "\r\na warning if a player gets near them, generate a gps" +
                                 "\n\rand play an alert every 15 seconds until they leave." +
-                                "\r\nformat: x,y,z radius(in metres) Alert Message." + 
+                                "\r\nformat: x,y,z radius(in metres) Alert Message." +
                                 "\r\nExample: 1234,10000,30000 20000 Danger black hole over here.";
                             MyAPIGateway.Utilities.ShowMissionScreen("lobby Help", "", "interstellar", reply, null, "Close");
                             return true;
@@ -1805,8 +1848,8 @@ namespace Lobby.scripts
             {
                 var trimmed = line.Trim();
 
-                
-               
+
+
                 //Nav warning logic
                 if (trimmed.StartsWith("[Navigation Warnings]"))
                 {
@@ -2056,7 +2099,7 @@ namespace Lobby.scripts
             }
 
             // Update globals with CubeSize
-            SetExits();            
+            SetExits();
         }
 
 
