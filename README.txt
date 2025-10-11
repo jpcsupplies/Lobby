@@ -289,6 +289,40 @@ Enter your navigation hazards location then use /lsave to record it.
 
 You can copy and paste the x y and z fields from a GPS point to get the correct location.
 
+********************************
+Special Navigation Warning Types
+********************************
+(Currently a work in progress: Some features like radiation damage might not work yet.)
+If you want a more specialised type of Navigation Hazard you can specify the type in the
+first word of your warning message.   Currently the only special type is "Radiation" which
+plays a different sound while you are in the warning area. 
+It has two types: 
+Normal Rad Zone (All space within the radius is radioactive, weaker at the edge)
+Anomaly Rad Zone(All space within the radius is radioacive, weaker at the edge and middle)
+
+The size of the edge (or middle zone) uses the [edgebuffer] setting from /ledit, or 10%
+of the radius if it is smaller than the defined edgebuffer size.
+
+Anomaly zones might be handy for hiding space hulks or relics or other interesting ruins
+where you want the player to take longer to gain radiation contamination to allow them
+to explore it.
+
+Normal Rad Zones might be handy for putting around Admin inserted areas with Uranium 
+available to mine or areas you want players not to spend too much time near.
+
+It can be used as follows:
+Designate the type using the Keyword "Radiation" or simply "R"
+Designate an Anomaly zone by the Keyword "Anomaly" (after "Radiation" or "R")
+
+example:
+[Navigation Warnings]
+-341000,24422,11111 8000 Radiation Area High in Uranium ore.
+1234,34322,111 10000 R Nuked area of space.
+22323,234244, 888 20000 R Anomaly Mysterious Derelict Space Hulk
+
+
+
+
 *****************************
 Global Server Wide GPS Points
 *****************************

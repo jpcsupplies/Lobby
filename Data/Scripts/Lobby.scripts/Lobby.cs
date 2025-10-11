@@ -65,6 +65,7 @@ namespace Lobby.scripts
         [ProtoMember(3)] public double Z;
         [ProtoMember(4)] public double Radius;
         [ProtoMember(5)] public string Message;
+        [ProtoMember(6)] public string Type; // New: "Radiation" or "General"
     }
     [ProtoContract]
     public class GlobalGPS
@@ -121,7 +122,7 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.54a (+SFX test build)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.54b (+Radiation Zones)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -683,10 +684,13 @@ namespace Lobby.scripts
                 foreach (var warning in navigationWarnings)
                 {
                     haznumber++;
+                    bool Radioactive = false;
+                    string typeCode = warning.Type == "Radiation" ? "R" : "Z"; // Z code for general non defined nav hazard, R for radiation.
                     if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
                     {
-                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#Z{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
-                        MyAPIGateway.Utilities.ShowMissionScreen("Navigation", "", "Warning", warning.Message, null, "Close");
+                        if (warning.Type == "Radiation") Radioactive = true;
+                            GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
+                        MyAPIGateway.Utilities.ShowMissionScreen("Navigation Warning", $"[{typeCode}] ", warning.Type, warning.Message, null, "Close");
                         StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.4f);
                         seenPopup = true; //no other popups recently shown except this one 
                         ClearSeenState = false;
@@ -695,14 +699,47 @@ namespace Lobby.scripts
                     }
                     else if (seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
                     {
+                        if (warning.Type == "Radiation") Radioactive = true;
                         //I can probably disable this one, if they saw the popup already likely already created one, but
                         //in edge cases where a station popup is within a warning zone  it might not create the gps
-                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#Z{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
                         //popups recently seen somewhere so just use a less annoying chat warning this time.                        
-                        MyAPIGateway.Utilities.ShowMessage("Navigation", $"***WARNING***: !!{warning.Message}!!");
-                        StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.2f);
+                        MyAPIGateway.Utilities.ShowMessage($"Nav[{typeCode}] Alert", $"*{warning.Type}*: <{warning.Message}>");
+                        StopLastPlayedSound();
+                        if (typeCode == "R")
+                        {
+                            //Use Default Radiation Sound for Radiation hazards
+                            PlayRadiationTicks();
+                        }
+                        else
+                        {
+                            //Use Alert Sound
+                            PlaySound(WoopSoundPair, 0.2f);
+                        }
                         ClearSeenState = false;
                         //break;  // Only show one at a time (Disable if need to show multiple)
+                    }
+                    if (Radioactive)
+                    {
+                        // Radiation damage
+                        double distance = Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z));
+
+                        double edgeThreshold = Math.Min(warning.Radius * 0.1, EdgeBuffer); // Min of 10% radius or EdgeBuffer
+                        float damage = 0.5f; // Base damage per tick
+                        if (distance > edgeThreshold)
+                        {
+                            damage *= 0.5f; // Halve at edge
+                        }
+                        if (warning.Message.ToLower().StartsWith("anomaly"))
+                        {
+                            damage *= 0.5f; // Halve in center for anomaly
+                        }
+
+                        // Apply radiation damage (simple overload)
+                        //MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
+
+                        MyAPIGateway.Utilities.ShowMessage("Debug", $"You would have taken {damage} radiation damage.");
+
                     }
                 }
 
@@ -1141,7 +1178,7 @@ namespace Lobby.scripts
 
             if (controlled == null)
                 return; // don't continue if session is not ready or player does not control anything.
-                   
+
             if (emitter == null)
                 emitter = new MyEntity3DSoundEmitter((MyEntity)controlled);
             else
@@ -1151,7 +1188,7 @@ namespace Lobby.scripts
             //emitter.StopSound(true); // Clear prior (disable if issues occur)
             emitter.PlaySingleSound(soundPair);
             //emitter.Cleanup();
-            
+
         }
 
         void StopLastPlayedSound(bool stopTimer = true)
@@ -1179,7 +1216,7 @@ namespace Lobby.scripts
         /// <param name="intervalSeconds"></param>   
         /// <param name="volume"></param>
 
-        private void PlayRadiationTicks(double intervalSeconds = 3, float volume = 0.4f)
+        private void PlayRadiationTicks(double intervalSeconds = 3, float volume = 0.3f)
         {
             // Optional volume (0.0-2.0)
             if (volume < 0) volume = 0f;
@@ -1870,6 +1907,13 @@ namespace Lobby.scripts
                         string radiusStr = parts[1];
                         string message = string.Join(" ", parts.Skip(2));
 
+                        string type = "General"; // Default
+                        if (parts[2].ToLower() == "r" || parts[2].ToLower() == "radiation")
+                        {
+                            type = "Radiation";
+                            message = string.Join(" ", parts.Skip(3)); // Shift message if type present
+                        }
+
                         double x; double y; double z; double radius;
 
                         var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1884,7 +1928,8 @@ namespace Lobby.scripts
                                 Y = y,
                                 Z = z,
                                 Radius = radius,
-                                Message = message
+                                Message = message,
+                                Type = type
                             });
                         }
                     }
