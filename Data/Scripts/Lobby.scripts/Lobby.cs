@@ -121,13 +121,14 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.53 (+Global GPS)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.54a (+SFX test build)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         private List<Destination> serverDestinations = new List<Destination>();
 
+        private Timer soundTimer; // For repeating sound bursts
         MyEntity3DSoundEmitter emitter;
         readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
         readonly MySoundPair WoopSoundPair = new MySoundPair("WoopWoop");
@@ -1137,6 +1138,12 @@ namespace Lobby.scripts
                 emitter.StopSound(true); // Force immediate stop
                 emitter = null; // Clear reference
             }
+            if (soundTimer != null)
+            {
+                soundTimer.Stop();
+                //soundTimer.Dispose();
+                soundTimer = null;
+            }
         }
 
 
@@ -1266,12 +1273,69 @@ namespace Lobby.scripts
             //This tests scan results and displays what the mod see's
             if (split[0].Equals("/ltest", StringComparison.InvariantCultureIgnoreCase) && split.Length > 1)
             {
-                if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase))
+                if (split[1].Equals("sound", StringComparison.InvariantCultureIgnoreCase)) //server jump/frameshift sound
                 { StopLastPlayedSound(); PlaySound(jumpSoundPair, 2f); }
-                else if (split[1].Equals("sound2", StringComparison.InvariantCultureIgnoreCase))
-                { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); }
+                else if (split[1].Equals("sound2", StringComparison.InvariantCultureIgnoreCase)) //woop woop alert siren
+                { StopLastPlayedSound(); PlaySound(WoopSoundPair, 2f); } 
+                else if (split[1].Equals("sound3", StringComparison.InvariantCultureIgnoreCase)) //radiation tick sound
+                {
+                    float volume = 0.5f; // Default quiet
+                    int repeats = 5; // Default short burst
+                    double interval = 0.2; //Default 0.2 tick
 
-                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                    if (split.Length > 2 && float.TryParse(split[2], out volume))
+                    {
+                        // Optional volume (0.0-2.0)
+                        if (volume < 0) volume = 0f;
+                        if (volume > 2) volume = 2f;
+                    }
+                    if (split.Length > 3 && int.TryParse(split[3], out repeats))
+                    {
+                        // Optional repeats (1-20)
+                        if (repeats < 1) repeats = 1;
+                        if (repeats > 20) repeats = 20;
+                    }
+                    if (split.Length > 4 && double.TryParse(split[4], out interval))
+                    {
+                        // No interval below 0.05 seconds or above 1.0 seconds
+                        if (interval < 0.05) interval = 0.05;
+                        if (interval > 1.0) interval = 1.0;
+                        //interval = Math.Max(0.05, Math.Min(1.0, interval)); // Clamp 0.05-1.0s
+                    }
+
+                    var radiationSound = new MySoundPair("RadiationTick");
+                    soundTimer = new Timer((int)(interval * 1000)); // ms
+                    int remainingRepeats = repeats;
+                    soundTimer.Elapsed += (s, e) =>
+                    {
+                        StopLastPlayedSound();
+                        PlaySound(radiationSound, volume);
+                        remainingRepeats--;
+                        if (remainingRepeats <= 0)
+                        {
+                            soundTimer.Stop();
+                            //soundTimer.Dispose();
+                            soundTimer = null;
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "RadiationTick burst complete");
+                        }
+                    };
+                    soundTimer.AutoReset = true;
+                    soundTimer.Start();
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"RadiationTick test started: Volume {volume}, Repeats {repeats}, Interval {interval}s");
+
+                    /*for (int i = 0; i < repeats; i++)
+                    {
+                        StopLastPlayedSound();
+                        PlaySound(radiationSound, volume);
+                        System.Threading.Thread.Sleep(200); // 0.2s interval for ticking effect
+                    } */
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", $"RadiationTick test: Volume {volume}, Repeats {repeats}");
+                    return true;
+                }
+            
+
+            if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
                 {
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
                     return false;
@@ -1285,8 +1349,8 @@ namespace Lobby.scripts
                 }
                 else if (split[1].Equals("reset", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("ltest reset:" + MyAPIGateway.Session.Player.SteamUserId));
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset request sent to server (admin only)");
+                    MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("ltest reset:" + MyAPIGateway.Session.Player.SteamUserId));
                 }
 
             }
