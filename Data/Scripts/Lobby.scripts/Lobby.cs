@@ -18,8 +18,6 @@
  *  Note to self use Ctrl + K, Ctrl + D to for re-tabbing globally
 */
 
-namespace Lobby.scripts
-{
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -47,9 +45,10 @@ namespace Lobby.scripts
     using Sandbox.Definitions;
     using Sandbox.Game.EntityComponents;
     using VRage.Game.Entity;
-    //using Lobby.scripts.ServerThingy??; //Not sure how to reference this to my LobbyServer namespace..
     using ProtoBuf;
 
+namespace Lobby.scripts
+{
     [ProtoContract]
     public class Destination
     {
@@ -77,6 +76,7 @@ namespace Lobby.scripts
         [ProtoMember(5)] public string Name; // Quoted name, e.g., "Mars"
         [ProtoMember(6)] public string Description; // Remaining text, e.g., "Planet Mars"
     }
+
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase

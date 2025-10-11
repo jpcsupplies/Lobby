@@ -55,6 +55,9 @@
     <Reference Include="Sandbox.RenderDirect">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\Sandbox.RenderDirect.dll</HintPath>
     </Reference>
+    <Reference Include="SpaceEngineers.ObjectBuilders">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\SpaceEngineers.ObjectBuilders.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />

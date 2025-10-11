@@ -1,5 +1,4 @@
-namespace Lobby.scripts
-{
+
     using System;
     using System.Text;
     using System.Collections.Generic;
@@ -8,6 +7,7 @@ namespace Lobby.scripts
     using VRageMath;
     using VRage.ObjectBuilders;
     using Sandbox.Common.ObjectBuilders;
+    using VRage;
     using VRage.Game;
     using VRage.Game.Components;
     using ProtoBuf;
@@ -16,6 +16,8 @@ namespace Lobby.scripts
     using System.Linq; // Added for Skip
     using VRage.ModAPI; // Added for IMyEntity
 
+namespace Lobby.scripts
+{
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class LobbyServer : MySessionComponentBase
     {
