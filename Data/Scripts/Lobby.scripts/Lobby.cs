@@ -742,15 +742,22 @@ namespace Lobby.scripts
                         var player = MyAPIGateway.Session.Player;
                         var character = player.Character;
                         var comptest = character.Components.Get<MyCharacterStatComponent>();
-                        
+
+                        //So?: character.DamageEtity(damage, MyDamageType.Radioactivity);                        
                         //Definately broken: MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
                         */
 
                         /*
                          * Digi Suggests: to add radiation you need a few steps:
                          * var comp = character.Components.Get<MyCharacterStatComponent>();
-                         * and nullcheck.
+                         * and nullcheck. (presumably to check its not unset)
                          * then it has `Radiation` property in it, deeper it has `Value` that can be read or set.
+                         * Digi Further Adds:
+                         * Setting Radiation.Value directly is not pausing decay, and also ignores rad immunity of course.
+                         * For decay to be properly affected and for radiation immunity to be considered: cast the
+                         * MyCharacterStatComponent to IMyHazardReceiver and call Apply() with MyCharacterStatComponent.RADIATION_ID id
+                         * and MyStringHash.NullOrEmpty damage type (because damage type is not used for radiation).
+                         *
                          * Need to look into this more when brain not broken.
                          */
 
