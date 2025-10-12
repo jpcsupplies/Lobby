@@ -55,16 +55,13 @@
     <Reference Include="Sandbox.RenderDirect">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\Sandbox.RenderDirect.dll</HintPath>
     </Reference>
-    <Reference Include="SpaceEngineers.Game">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\SpaceEngineers.Game.dll</HintPath>
-    </Reference>
     <Reference Include="SpaceEngineers.ObjectBuilders">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\SpaceEngineers.ObjectBuilders.dll</HintPath>
     </Reference>
+    <Reference Include="System" />
     <Reference Include="System.Collections.Immutable">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\System.Collections.Immutable.dll</HintPath>
     </Reference>
-    <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data" />
@@ -75,20 +72,17 @@
     <Reference Include="VRage.Audio">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Audio.dll</HintPath>
     </Reference>
-    <Reference Include="VRage.Render">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Render.dll</HintPath>
-    </Reference>
     <Reference Include="VRage.Game">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Game.dll</HintPath>
+    </Reference>
+    <Reference Include="VRage.Input">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Input.dll</HintPath>
     </Reference>
     <Reference Include="VRage.Library">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Library.dll</HintPath>
     </Reference>
     <Reference Include="VRage.Math">
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Math.dll</HintPath>
-      <Private>False</Private>
-    <Reference Include="VRage.Input">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Input.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
