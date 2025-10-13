@@ -735,7 +735,7 @@ namespace Lobby.scripts
                         else { edgeThreshold = warning.Radius * 0.2; } //otherwise make the buffer zone 20% of the zone radius
 
                         // Base radiation gain per tick
-                        float baseDamage = 13.5f; // Base before random
+                        float baseDamage = 12.0f; // Base before random
                         var rand = new Random(DateTime.Now.Millisecond); // Seed with ms for randomness
                         double randomValue = rand.NextDouble() * 5 + 1; // Random 1.0 to 6.0
                         float randomDeduct = (float)Math.Round(randomValue, 2); // Round to 2 decimals (e.g., 3.45)
