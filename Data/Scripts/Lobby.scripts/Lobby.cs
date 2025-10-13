@@ -47,6 +47,10 @@ using Sandbox.Game.EntityComponents;
 using VRage.Game.Entity;
 using ProtoBuf;
 
+using Sandbox.Game.Entities.Character.Components; // For MyCharacterStatComponent
+using VRage.Game.Components; // For IMyHazardReceiver
+using VRage.Utils; // For MyStringHash
+
 namespace Lobby.scripts
 {
     [ProtoContract]
@@ -724,44 +728,45 @@ namespace Lobby.scripts
                         // Radiation damage
                         double distance = Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z));
 
-                        double edgeThreshold = Math.Min(warning.Radius * 0.1, EdgeBuffer); // Min of 10% radius or EdgeBuffer
-                        float damage = 0.5f; // Base damage per tick
-                        if (distance > edgeThreshold)
+                        double edgeThreshold = 10;
+
+                        //If the edge buffer is smaller than the hazard zone, use that as the reduced radiation buffer zone.
+                        if (EdgeBuffer > warning.Radius) { edgeThreshold = EdgeBuffer; }
+                        else { edgeThreshold = warning.Radius * 0.2; } //otherwise make the buffer zone 20% of the zone radius
+
+                        // Base radiation gain per tick
+                        float baseDamage = 13.5f; // Base before random
+                        var rand = new Random(DateTime.Now.Millisecond); // Seed with ms for randomness
+                        double randomValue = rand.NextDouble() * 5 + 1; // Random 1.0 to 6.0
+                        float randomDeduct = (float)Math.Round(randomValue, 2); // Round to 2 decimals (e.g., 3.45)
+                        float damage = baseDamage - randomDeduct; // Deduct random (e.g., 15 - 3 = 12)
+                        //spin the wheel a few more times since sometimes it gets stuck.
+                        randomValue = 0;
+                        randomValue = rand.NextDouble() * (randomDeduct * 0.81);
+                        randomDeduct = 0;
+
+                        //if player distance from zone centre is bigger than edgeThreshold
+                        if (distance > (warning.Radius - edgeThreshold))
                         {
-                            damage *= 0.5f; // Halve at edge
+                            //We must be in the outer buffer zone, less radiation here.
+                            //MyAPIGateway.Utilities.ShowMessage("Debug", "Bufferzone 80% Damage");
+                            damage *= 0.8f; // Reduce at edge
                         }
-                        if (warning.Message.ToLower().StartsWith("anomaly"))
+                        else if (warning.Message.ToLower().StartsWith("anomaly") && distance < edgeThreshold)
                         {
-                            damage *= 0.5f; // Halve in center for anomaly
+                            //we must be at the centre of an Anomaly, reduce damage by half to make exploration viable.
+                            //MyAPIGateway.Utilities.ShowMessage("Debug", $"Anomaly middle 50% damage.");
+                            damage = (damage * 0.5f)-1.0f; // Halve in center for anomaly -1 bias
                         }
+                        else
+                        {
+                            // MyAPIGateway.Utilities.ShowMessage("Debug", $"Distance NOT {distance} > (ZR{warning.Radius} - Buf{edgeThreshold}) 100% Damage"); 
+                            //MyAPIGateway.Utilities.ShowMessage("Debug", $"NOT Anomaly Middle or Bufferzone 100% Damage");
+                        }
+                        //MyAPIGateway.Utilities.ShowMessage("Debug", $"You would have taken {damage} radiation damage.");
 
-                        // Apply radiation damage 
-                        //This code almost works, and needs to be run server side once I get it working
-                        //single player.
-                        /*
-                        var player = MyAPIGateway.Session.Player;
-                        var character = player.Character;
-                        var comptest = character.Components.Get<MyCharacterStatComponent>();
-
-                        //So?: character.DamageEtity(damage, MyDamageType.Radioactivity);                        
-                        //Definately broken: MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
-                        */
-
-                        /*
-                         * Digi Suggests: to add radiation you need a few steps:
-                         * var comp = character.Components.Get<MyCharacterStatComponent>();
-                         * and nullcheck. (presumably to check its not unset)
-                         * then it has `Radiation` property in it, deeper it has `Value` that can be read or set.
-                         * Digi Further Adds:
-                         * Setting Radiation.Value directly is not pausing decay, and also ignores rad immunity of course.
-                         * For decay to be properly affected and for radiation immunity to be considered: cast the
-                         * MyCharacterStatComponent to IMyHazardReceiver and call Apply() with MyCharacterStatComponent.RADIATION_ID id
-                         * and MyStringHash.NullOrEmpty damage type (because damage type is not used for radiation).
-                         *
-                         * Need to look into this more when brain not broken.
-                         */
-
-                        MyAPIGateway.Utilities.ShowMessage("Debug", $"You would have taken {damage} radiation damage.");
+                        // Apply radiation damage - Moved to EffectPlayer() for simplicity.
+                        EffectPlayer("Radiation", damage);
 
                     }
                 }
@@ -850,6 +855,96 @@ namespace Lobby.scripts
 
             //fell through a hole
             return false;
+        }
+        /// <summary>
+        /// Change the value/level of one of a players attributes by increase/decrease a given amount.
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="amount"></param>
+        public static void EffectPlayer(string type = "Radiation", float amount = 0.0f)
+        {
+            //Assume we only want current player so don't need to collect player ID as input value.
+            //But will need to send it to server.
+            //Applies changes to characters attributes.  Default Radiation.
+            if (type == "Radiation")
+            {
+                // Apply radiation damage 
+                // Step 1: Send request to server (uncomment to test)                
+                ulong playerSteamId = MyAPIGateway.Session.Player.SteamUserId;
+                string message = $"ApplyChange:Radiation:{playerSteamId}:{amount}";
+                MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes(message));
+                // MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Radiation message sent to server");
+
+                // Step 1 Local Fallback (uncomment for offline/single-player test)
+                if (MyAPIGateway.Multiplayer.IsServer)
+                {
+                    var character = MyAPIGateway.Session.Player.Character;
+                    if (character != null)
+                    {
+                        var comp = character.Components.Get<Sandbox.Game.Components.MyCharacterStatComponent>();
+                        //character.Components.Get<MyCharacterStatComponent>();
+                        if (comp != null)
+                        {
+                            //comp.Radiation.Value += damage; // Add exposure (ignores decay/immunity) Method 1 test
+                            
+                            float before = comp.Radiation.Value;
+                            comp.Radiation.Value += amount;
+                            float after = comp.Radiation.Value;
+                            //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Direct Radiation.Value before {before:F2} + {damage:F2} = after {after:F2}");
+
+                            //This doesn't seem to work need to fix references. Using simpler accumulate Radiation Value method instead.
+                            /* var receiver = comp as IMyHazardReceiver;
+                             if (receiver != null)
+                             {
+                                 MyStringHash radiationId = MyStringHash.GetOrCompute("Radiation");
+                                 float amount = damage; // Ensure float
+                                 MyStringHash nullDamageType = MyStringHash.NullOrEmpty;
+                                 receiver.Apply(radiationId, amount, nullDamageType);
+                                 MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Apply Radiation {amount:F2}, total: {comp.Radiation.Value:F2}");
+                             }
+                             */
+                            //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Direct Radiation.Value += {damage:F2}, total: {comp.Radiation.Value:F2}");
+                        }
+                    }
+                }
+                amount = 0; //clear the damage amount afterwards ready for next run.
+            }
+            else if (type == "Damage") { }   //Effect Health
+            else if (type == "Hunger") { }   //Effect Remaining Food bar level
+            else if (type == "Energy") { }   //Effect Suit Remaining Power level 
+            else if (type == "Hydrogen") { } //Effect Suit Fuel level
+            else if (type == "Oxygen") { }   //Effect Suit Oxygen Level
+            else { } //Something Unexpected.
+
+             
+            //This code almost works, and needs to be run server side once I get it working
+            //single player.
+            /*
+            var player = MyAPIGateway.Session.Player;
+            var character = player.Character;
+            var comptest = character.Components.Get<MyCharacterStatComponent>();
+
+            //So?: character.DamageEtity(damage, MyDamageType.Radioactivity);                        
+            //Definately broken: MyAPIGateway.Session.Player.Character.DamageEntity(damage, MyDamageType.Radioactivity);
+            */
+
+            /*
+             * Digi Suggests: to add radiation you need a few steps:
+             * var comp = character.Components.Get<MyCharacterStatComponent>();
+             * and nullcheck. (presumably to check its not unset)
+             * then it has `Radiation` property in it, deeper it has `Value` that can be read or set.
+             * ^^^^^ This works mostly, and is reduced by anti-rad shots
+             * 
+             * Digi Further Adds:
+             * Setting Radiation.Value directly is not pausing decay, and also ignores rad immunity of course.
+             * For decay to be properly affected and for radiation immunity to be considered: cast the
+             * MyCharacterStatComponent to IMyHazardReceiver and call Apply() with MyCharacterStatComponent.RADIATION_ID id
+             * and MyStringHash.NullOrEmpty damage type (because damage type is not used for radiation).
+             *
+             * Need to look into this more when brain not broken.
+             */
+
+
         }
 
         /// <summary.

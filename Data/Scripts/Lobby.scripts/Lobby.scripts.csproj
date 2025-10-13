@@ -85,6 +85,9 @@
       <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Math.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="VRage.Render">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Reference Assemblies\SpaceEngineers\VRage.Render.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\modinfo.sbmi">

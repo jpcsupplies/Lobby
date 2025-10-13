@@ -1,20 +1,20 @@
 
-    using System;
-    using System.Text;
-    using System.Collections.Generic;
-    using Sandbox.ModAPI;
-    using VRage.Game.ModAPI;
-    using VRageMath;
-    using VRage.ObjectBuilders;
-    using Sandbox.Common.ObjectBuilders;
-    using VRage;
-    using VRage.Game;
-    using VRage.Game.Components;
-    using ProtoBuf;
-    using Sandbox.Game.Entities;
-    using VRage.Game.Entity;
-    using System.Linq; // Added for Skip
-    using VRage.ModAPI; // Added for IMyEntity
+using System;
+using System.Text;
+using System.Collections.Generic;
+using Sandbox.ModAPI;
+using VRage.Game.ModAPI;
+using VRageMath;
+using VRage.ObjectBuilders;
+using Sandbox.Common.ObjectBuilders;
+using VRage;
+using VRage.Game;
+using VRage.Game.Components;
+using ProtoBuf;
+using Sandbox.Game.Entities;
+using VRage.Game.Entity;
+using System.Linq; // Added for Skip
+using VRage.ModAPI; // Added for IMyEntity
 
 namespace Lobby.scripts
 {
@@ -66,7 +66,7 @@ namespace Lobby.scripts
                             configText += line + "\n";
                         }
                     }
-                }                
+                }
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText), steamId);
             }
             else if (message.StartsWith("SaveConfig:"))
@@ -190,10 +190,69 @@ namespace Lobby.scripts
 
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("Led itSuccess"), steamId);
             }
+            // Step 2: Add this handler (uncomment to test)
+            else if (message.StartsWith("ApplyChange:"))
+            {
+                var parts = message.Split(':');
+                if (parts.Length == 4)
+                {
+                    string attributeType = parts[1];
+                    ulong playerSteamId = ulong.Parse(parts[2]);
+                    float amount = float.Parse(parts[3]);
 
+                    var players = new List<IMyPlayer>();
+                    MyAPIGateway.Players.GetPlayers(players, p => p.SteamUserId == playerSteamId);
+                    var player = players.FirstOrDefault();
+
+                    if (attributeType == "Radiation")
+                    {
+                        if (player != null && player.Character != null)
+                        {
+                            // var comp = player.Character.Components.Get<Sandbox.Game.Entities.Character.Components.MyCharacterStatComponent>();
+                            var comp = player.Character.Components.Get<Sandbox.Game.Components.MyCharacterStatComponent>();
+                            if (comp != null)
+                            {
+                                comp.Radiation.Value += amount;
+                                // Optional log (remove for production)
+                                // MyAPIGateway.Utilities.ShowMessage("LobbyServer", $"Debug: Server Radiation.Value += {amount:F2} for {player.DisplayName}, total: {comp.Radiation.Value:F2}");
+                            }
+                        }
+                    }
+                    else if (attributeType == "Damage")
+                    {
+                        // Placeholder for direct damage
+                        // if (player != null && player.Character != null)
+                        // {
+                        //     var damageInfo = new MyDamageInformation
+                        //     {
+                        //         Amount = amount,
+                        //         Type = MyDamageType.Generic
+                        //     };
+                        //     MyAPIGateway.Entities.DamageEntity(player.Character, damageInfo);
+                        // }
+                    }
+                    // Add more else if for "Hunger", "Energy", "Hydrogen", "Oxygen" as placeholders
+                    else if (attributeType == "Hunger")
+                    {
+                        // Placeholder: Future hunger logic
+                    }
+                    else if (attributeType == "Energy")
+                    {
+                        // Placeholder: Future energy logic
+                    }
+                    else if (attributeType == "Hydrogen")
+                    {
+                        // Placeholder: Future hydrogen logic
+                    }
+                    else if (attributeType == "Oxygen")
+                    {
+                        // Placeholder: Future oxygen logic
+                    }
+                }
+            }
         }
 
-        private string LoadConfigText(bool reset=false)
+        private string LoadConfigText(bool reset = false)
         {
             try
             {
