@@ -33,5 +33,37 @@
         </Wave>
       </Waves>
     </Sound>
+    <Sound>
+      <Id>
+        <TypeId>MyObjectBuilder_AudioDefinition</TypeId>
+        <SubtypeId>DangerJump</SubtypeId>
+      </Id>
+      <MaxDistance>100</MaxDistance>
+      <Volume>1.00</Volume>
+      <Loopable>false</Loopable>
+      <Pitch>0</Pitch>
+      <Waves>
+        <Wave Type="D3">
+          <Start>Data\Sounds\InterstellarDangerJump.xwm</Start>
+	  <End></End>
+        </Wave>
+      </Waves>
+    </Sound>
+    <Sound>
+      <Id>
+        <TypeId>MyObjectBuilder_AudioDefinition</TypeId>
+        <SubtypeId>BadSpoolLoop</SubtypeId>
+      </Id>
+      <MaxDistance>100</MaxDistance>
+      <Volume>1.00</Volume>
+      <Loopable>false</Loopable>
+      <Pitch>0</Pitch>
+      <Waves>
+        <Wave Type="D3">
+          <Start>Data\Sounds\BadSpoolLoop.xwm</Start>
+	  <End></End>
+        </Wave>
+      </Waves>
+    </Sound>
   </Sounds>
 </Definitions>

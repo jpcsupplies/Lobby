@@ -250,6 +250,74 @@ namespace Lobby.scripts
                     }
                 }
             }
+            else if (message.StartsWith("MoveGrid:"))
+            {
+                var parts = message.Split(':');
+                if (parts.Length == 6)
+                {
+                    ulong playerSteamId = ulong.Parse(parts[1]);
+                    long gridEntityId = long.Parse(parts[2]);
+                    double x = double.Parse(parts[3]);
+                    double y = double.Parse(parts[4]);
+                    double z = double.Parse(parts[5]);
+                    bool movePlayerIfFree = bool.Parse(parts[6]);
+
+                    if (MyAPIGateway.Session.GetUserPromoteLevel(playerSteamId) < MyPromoteLevel.SpaceMaster)
+                    {
+                        MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("AccessDenied"), playerSteamId);
+                        return;
+                    }
+
+                    var grid = MyAPIGateway.Entities.GetEntityById(gridEntityId) as IMyCubeGrid;
+                    if (grid != null)
+                    {
+                        ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
+                        MyAPIGateway.Utilities.ShowMessage("LobbyServer", $"Debug: Server moved grid {gridEntityId} to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
+                    }
+                }
+            }
+        }
+
+        private void ApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
+        {
+            if (grid == null)
+                return;
+
+            // Save orientation
+            MatrixD currentMatrix = grid.WorldMatrix;
+
+            // New position
+            Vector3D newPos = new Vector3D(x, y, z);
+            MatrixD newMatrix = currentMatrix;
+            newMatrix.Translation = newPos;
+
+            // Find subgrids (filter attached)
+            var subgrids = new HashSet<VRage.ModAPI.IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(subgrids, g => g is IMyCubeGrid && ((IMyCubeGrid)g).Parent == grid);
+
+            var subgridList = subgrids.OfType<IMyCubeGrid>().ToList();
+
+            // Move main grid
+            grid.WorldMatrix = newMatrix;
+
+            // Re-position subgrids
+            foreach (var subgrid in subgridList)
+            {
+                MatrixD subMatrix = subgrid.WorldMatrix;
+                subMatrix.Translation = subMatrix.Translation + (newPos - grid.GetPosition());
+                subgrid.WorldMatrix = subMatrix;
+            }
+
+            // Optional: Move player if free (not in grid)
+            if (movePlayerIfFree)
+            {
+                var player = MyAPIGateway.Session.Player;
+                if (player != null && player.Character != null && player.Character.Parent == null)
+                {
+                    player.Character.SetPosition(newPos);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Moved free player to new pos");
+                }
+            }
         }
 
         private string LoadConfigText(bool reset = false)

@@ -94,6 +94,9 @@ namespace Lobby.scripts
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
+        //forced spool override effect
+	public bool spooling = false; private int spoolCounter = 0;
+        private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
         public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
@@ -140,6 +143,8 @@ namespace Lobby.scripts
         //private List<MyEntity3DSoundEmitter> radiationEmitters = new List<MyEntity3DSoundEmitter>(); // Track emitters
         readonly MySoundPair jumpSoundPair = new MySoundPair("IJump");
         readonly MySoundPair WoopSoundPair = new MySoundPair("WoopWoop");
+        readonly MySoundPair BadJump = new MySoundPair("DangerJump"); //17 sec
+        readonly MySoundPair SpoolLoop = new MySoundPair("BadSpoolLoop"); //1 sec
         readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
 
 
@@ -438,6 +443,20 @@ namespace Lobby.scripts
                     StopLastPlayedSound();
                     JoinServer(Target);
                 }
+                else if (spooling)
+                {
+                    spoolCounter++;
+                    if (spoolCounter >= SPOOL_DELAY)
+                    {
+                        StopLastPlayedSound();
+                        spoolCounter = 0;
+                        PlaySound(SpoolLoop, 2f);
+                    }
+                }
+                else
+                {
+                    spoolCounter = 0; // Reset counter when spooling stops
+                }
             }
             base.UpdateAfterSimulation();
         }
@@ -735,7 +754,7 @@ namespace Lobby.scripts
                         else { edgeThreshold = warning.Radius * 0.2; } //otherwise make the buffer zone 20% of the zone radius
 
                         // Base radiation gain per tick
-                        float baseDamage = 12.0f; // Base before random
+                        float baseDamage = 14.0f; // Base before random
                         var rand = new Random(DateTime.Now.Millisecond); // Seed with ms for randomness
                         double randomValue = rand.NextDouble() * 5 + 1; // Random 1.0 to 6.0
                         float randomDeduct = (float)Math.Round(randomValue, 2); // Round to 2 decimals (e.g., 3.45)
@@ -756,7 +775,7 @@ namespace Lobby.scripts
                         {
                             //we must be at the centre of an Anomaly, reduce damage by half to make exploration viable.
                             //MyAPIGateway.Utilities.ShowMessage("Debug", $"Anomaly middle 50% damage.");
-                            damage = (damage * 0.5f)-1.0f; // Halve in center for anomaly -1 bias
+                            damage = (damage * 0.5f)+1.0f; // Halve in center for anomaly +1 bias
                         }
                         else
                         {
@@ -996,6 +1015,65 @@ namespace Lobby.scripts
                 }
             }
             //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am returning from GPS()");
+        }
+
+        public void MoveGridRequest(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
+        {
+            if (grid == null)
+                return;
+
+            ulong playerSteamId = MyAPIGateway.Session.Player.SteamUserId;
+            string message = $"MoveGrid:{playerSteamId}:{grid.EntityId}:{x}:{y}:{z}:{movePlayerIfFree}";
+            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes(message));
+
+            // Local fallback for offline/single-player
+            if (MyAPIGateway.Multiplayer.IsServer)
+            {
+                ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
+                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
+            }
+        }
+
+        private void ApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
+        {
+            if (grid == null)
+                return;
+
+            // Save orientation
+            MatrixD currentMatrix = grid.WorldMatrix;
+
+            // New position
+            Vector3D newPos = new Vector3D(x, y, z);
+            MatrixD newMatrix = currentMatrix;
+            newMatrix.Translation = newPos;
+
+            // Find subgrids (filter attached)
+            var subgrids = new HashSet<VRage.ModAPI.IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(subgrids, g => g is IMyCubeGrid && ((IMyCubeGrid)g).Parent == grid);
+
+            var subgridList = subgrids.OfType<IMyCubeGrid>().ToList();
+
+            // Move main grid
+            grid.WorldMatrix = newMatrix;
+
+            // Re-position subgrids
+            foreach (var subgrid in subgridList)
+            {
+                MatrixD subMatrix = subgrid.WorldMatrix;
+                subMatrix.Translation = subMatrix.Translation + (newPos - grid.GetPosition());
+                subgrid.WorldMatrix = subMatrix;
+            }
+
+            // Optional: Move player if free (not in grid)
+            if (movePlayerIfFree)
+            {
+                var player = MyAPIGateway.Session.Player;
+                if (player != null && player.Character != null && player.Character.Parent == null)
+                {
+                    player.Character.SetPosition(newPos);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Moved free player to new pos");
+                }
+            }
         }
 
         private static Color GetColorFromString(string colour)
@@ -1461,6 +1539,71 @@ namespace Lobby.scripts
             #endregion editconfig
 
             #region depart
+            //jump override to force grid jump from voxel
+            //
+            if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase))
+            {
+                var controlled = MyAPIGateway.Session.ControlledObject;
+                IMyCubeGrid grid = null;
+
+                if (controlled is Sandbox.ModAPI.Ingame.IMyCockpit)
+                {
+                    Sandbox.ModAPI.Ingame.IMyCockpit cockpit = (Sandbox.ModAPI.Ingame.IMyCockpit)controlled;
+                    grid = (VRage.Game.ModAPI.IMyCubeGrid)cockpit.CubeGrid; // Get grid from cockpit
+                }
+                else if (controlled is Sandbox.ModAPI.Ingame.IMyCryoChamber)
+                {
+                    Sandbox.ModAPI.Ingame.IMyCryoChamber cryoChamber = (Sandbox.ModAPI.Ingame.IMyCryoChamber)controlled;
+                    grid = (VRage.Game.ModAPI.IMyCubeGrid)cryoChamber.CubeGrid; // Get grid from seat
+                }
+                else if (controlled is VRage.Game.ModAPI.IMyCubeGrid)
+                {
+                    VRage.Game.ModAPI.IMyCubeGrid directGrid = (VRage.Game.ModAPI.IMyCubeGrid)controlled;
+                    grid = directGrid; // Direct grid control
+                }
+
+                if (grid == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: No grid controlled—select a grid block or sit in cockpit/seat.");
+                    return true;
+                }
+
+                double distance;
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) >= MyPromoteLevel.SpaceMaster && split.Length > 1)
+                {
+                    if (double.TryParse(split[1], out distance))
+                    {
+                        // Admin: Use specified distance
+                    }
+                    else
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Invalid distance—use /override [distance]");
+                        return true;
+                    }
+                }
+                else
+                {
+                    // Player: Random 100-1000m
+                    var rand = new Random(DateTime.Now.Millisecond);
+                    distance = rand.Next(100, 1001);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Random override: {distance:F0}m forward");
+                }
+
+                // Calculate forward offset
+                //Vector3D forwardOffset = grid.WorldMatrix.Forward * distance;
+                //Vector3D newPos = grid.GetPosition() + forwardOffset;
+                // Calculate forward offset (player view)
+                Vector3D playerForward = MyAPIGateway.Session.Player.Character.WorldMatrix.Forward;
+                                Vector3D forwardOffset = playerForward * distance;
+                Vector3D newPos = grid.GetPosition() + forwardOffset;
+
+                // Move (uses server/local fallback)
+                MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
+
+                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
+                return true;
+            }
+
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
             {
                 if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
@@ -1505,6 +1648,14 @@ namespace Lobby.scripts
                 else if (split[1].Equals("sound0", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
                 {
                     StopLastPlayedSound(); PlaySound(SoundTest, 2f);  //edit sound id in global declarations                  
+                }
+                else if (split[1].Equals("sound4", StringComparison.InvariantCultureIgnoreCase) || split[1].Equals("spoolup", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
+                {
+                    StopLastPlayedSound(); PlaySound(BadJump, 2f);  //edit sound id in global declarations                  
+                }
+                else if (split[1].Equals("sound5", StringComparison.InvariantCultureIgnoreCase) || split[1].Equals("spool", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
+                {
+                    StopLastPlayedSound(); if (spooling) { spooling = false;  } else spooling = true;
                 }
                 else if (split[1].Equals("sound3", StringComparison.InvariantCultureIgnoreCase)) //radiation tick sound
                 {
