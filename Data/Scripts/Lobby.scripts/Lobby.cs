@@ -94,8 +94,12 @@ namespace Lobby.scripts
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
+        
         //forced spool override effect
-	public bool spooling = false; private int spoolCounter = 0;
+        public bool spoolup = false; //are we still spinning it up?
+	    public bool spooling = false; //its stuck spinning
+        private int spoolCounter = 0; 
+
         private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
         public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
@@ -129,7 +133,7 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.54b (+Radiation Zones)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.55b (+JumpOverrideAnomalyRadiation Zones)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -146,9 +150,10 @@ namespace Lobby.scripts
         readonly MySoundPair BadJump = new MySoundPair("DangerJump"); //17 sec
         readonly MySoundPair SpoolLoop = new MySoundPair("BadSpoolLoop"); //1 sec
         readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
+        readonly MySoundPair Boom = new MySoundPair("ArcWepSmallMissileExplShip");
 
 
-        readonly MySoundPair SoundTest = new MySoundPair("ArcHudVocRadiationImmunityLow"); //for /ltest sound0 tests
+        readonly MySoundPair SoundTest = new MySoundPair("ArcWepSmallMissileExpl"); //for /ltest sound0 tests
         /*
                     * A few interesting Sound IDs
                     * RealHudVocSolarInbound  solar wind voice warning (uses speech engine, no good)
@@ -160,7 +165,8 @@ namespace Lobby.scripts
                     * ArcHudQuestlogDetail
                     * ArcHudVocRadiationImmunityLow
                     * ArcHudVocRadiationCritical
-                    * 
+                    * ArcWepSmallMissileExplShip
+                    * ArcWepSmallMissileExpl
 
                    */
 
@@ -423,17 +429,24 @@ namespace Lobby.scripts
 
                 //this stuff controls times for charging to jump etc its aethetic only so the sound plays before connect 
                 //         jumping chargetime startTime lockedtarget  
+               
                 if (jumping && chargetime > 0)
                 {
                     string reply = "";
                     if (DateTime.UtcNow - startTime > TimeSpan.FromSeconds(1))
                     {
                         startTime = DateTime.UtcNow;
-                        chargetime--;
-                        reply = $"Charging {chargetime}";
+                        //if it is a jump override, jam the jump engine until /depart and abort jump countdown
+                        if (chargetime <= 2 && spoolup) { spooling = true; jumping = false; spoolup = false; reply = "Charging *&^%!@@ Error *##//|* /override to cancel, /depart to jump anyway."; }
+                        else
+                        {
+                            chargetime--;
+                            reply = $"Charging {chargetime}";
+                        }
                         MyAPIGateway.Utilities.ShowMessage("", reply);
                     }
                 }
+                
                 else if (chargetime <= 0 && jumping)
                 {
                     jumping = false;
@@ -443,14 +456,17 @@ namespace Lobby.scripts
                     StopLastPlayedSound();
                     JoinServer(Target);
                 }
-                else if (spooling)
+
+                if (spooling) //may need to make this a pure else so the above flag hits this frame
                 {
                     spoolCounter++;
                     if (spoolCounter >= SPOOL_DELAY)
                     {
+                        //string reply = $"Charging {chargetime}";  should be random
+                       
                         StopLastPlayedSound();
                         spoolCounter = 0;
-                        PlaySound(SpoolLoop, 2f);
+                        PlaySound(SpoolLoop, 1.3f);
                     }
                 }
                 else
@@ -693,6 +709,7 @@ namespace Lobby.scripts
                 }
 
 
+
                 //[Navigation Warnings] logic
                 //If it is first time pop up warning; set seen flag
                 //If it is second time only show console message
@@ -834,6 +851,65 @@ namespace Lobby.scripts
                     if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
                     if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
 
+                    // Interstellar buffer zone effects (insert after boundary checks)
+                    if (!quiet && !SuppressInterStellar)
+                    {
+                        //double X = position.X; double Y = position.Y; double Z = position.Z;
+                        double dominantAxis = Math.Max(Math.Max(Math.Abs(X), Math.Abs(Y)), Math.Abs(Z));
+                        double distToBoundary = 0.0;
+                        string facingDirection = "";
+
+                        if (Math.Abs(X) == dominantAxis)
+                        {
+                            distToBoundary = Math.Abs(X) - range;
+                            facingDirection = X > 0 ? "GE" : "GW";
+                        }
+                        else if (Math.Abs(Y) == dominantAxis)
+                        {
+                            distToBoundary = Math.Abs(Y) - range;
+                            facingDirection = Y > 0 ? "GN" : "GS";
+                        }
+                        else if (Math.Abs(Z) == dominantAxis)
+                        {
+                            distToBoundary = Math.Abs(Z) - range;
+                            facingDirection = Z > 0 ? "GU" : "GD";
+                        }
+
+                        if (distToBoundary > 0 && distToBoundary <= buffer)
+                        {
+                            double intensity = 1.0 - (distToBoundary / buffer); // 1.0 at boundary, 0 at edge
+
+                            // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
+                            StopLastPlayedSound();
+                            var radiationSound = new MySoundPair("ArcHudVocRadiationCritical");
+                            PlaySound(radiationSound, (float)intensity * 0.4f);
+                            var stopTimer = new Timer(2000); // 2 seconds
+                            stopTimer.Elapsed += (s, e) => StopLastPlayedSound(true);
+                            stopTimer.AutoReset = false;
+                            stopTimer.Start();
+
+                            // Caution message if destination in direction
+                            string cautionMsg = "Caution: Approaching interstellar space.";
+                            if (!string.IsNullOrEmpty(Target) && Target == facingDirection)
+                            {
+                                cautionMsg += $" Destination {Target} ahead.";
+                            }
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
+
+                            // Placeholder for visual flag (e.g., set flag for streaks/wireframes)
+                            //visualEffectsActive = true; // Set flag for UpdateBeforeSimulation to draw
+
+                            // Optional: Throttle message/sound to every 10 ticks to avoid spam
+                            if (counter % 10 == 0)
+                            {
+                                // Message/sound here (already above)
+                            }
+                        }
+                        else
+                        {
+                            //visualEffectsActive = false; // Clear flag when out of buffer
+                        }
+                    }
 
                     /* old logic remove later once testing passes
                     if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
@@ -1543,70 +1619,86 @@ namespace Lobby.scripts
             //
             if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase))
             {
-                var controlled = MyAPIGateway.Session.ControlledObject;
-                IMyCubeGrid grid = null;
+                //moved to depart
+                //need to trigger a jumping flag type spool up and countdown but stop counting at 17 sec
+                //and start outputting gltiches/text while the "spooling" flag is still set and
+                //the scary spinning sound is still playing.
+                spoolup = true;
+                jumping = true; // set off the jump countdown
+                MyAPIGateway.Utilities.ShowMessage("Lobby", "Danger Jump Integrity protocols disabled. /override to abort. Preparing to jump.");
+                StopLastPlayedSound(); PlaySound(BadJump, 2f);
 
-                if (controlled is Sandbox.ModAPI.Ingame.IMyCockpit)
-                {
-                    Sandbox.ModAPI.Ingame.IMyCockpit cockpit = (Sandbox.ModAPI.Ingame.IMyCockpit)controlled;
-                    grid = (VRage.Game.ModAPI.IMyCubeGrid)cockpit.CubeGrid; // Get grid from cockpit
-                }
-                else if (controlled is Sandbox.ModAPI.Ingame.IMyCryoChamber)
-                {
-                    Sandbox.ModAPI.Ingame.IMyCryoChamber cryoChamber = (Sandbox.ModAPI.Ingame.IMyCryoChamber)controlled;
-                    grid = (VRage.Game.ModAPI.IMyCubeGrid)cryoChamber.CubeGrid; // Get grid from seat
-                }
-                else if (controlled is VRage.Game.ModAPI.IMyCubeGrid)
-                {
-                    VRage.Game.ModAPI.IMyCubeGrid directGrid = (VRage.Game.ModAPI.IMyCubeGrid)controlled;
-                    grid = directGrid; // Direct grid control
-                }
-
-                if (grid == null)
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: No grid controlled—select a grid block or sit in cockpit/seat.");
-                    return true;
-                }
-
-                double distance;
-                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) >= MyPromoteLevel.SpaceMaster && split.Length > 1)
-                {
-                    if (double.TryParse(split[1], out distance))
-                    {
-                        // Admin: Use specified distance
-                    }
-                    else
-                    {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Invalid distance—use /override [distance]");
-                        return true;
-                    }
-                }
-                else
-                {
-                    // Player: Random 100-1000m
-                    var rand = new Random(DateTime.Now.Millisecond);
-                    distance = rand.Next(100, 1001);
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Random override: {distance:F0}m forward");
-                }
-
-                // Calculate forward offset
-                //Vector3D forwardOffset = grid.WorldMatrix.Forward * distance;
-                //Vector3D newPos = grid.GetPosition() + forwardOffset;
-                // Calculate forward offset (player view)
-                Vector3D playerForward = MyAPIGateway.Session.Player.Character.WorldMatrix.Forward;
-                                Vector3D forwardOffset = playerForward * distance;
-                Vector3D newPos = grid.GetPosition() + forwardOffset;
-
-                // Move (uses server/local fallback)
-                MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
-
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
                 return true;
             }
 
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
             {
-                if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
+                if (spooling) {
+                    
+                    spooling = false;StopLastPlayedSound();
+                    PlaySound(Boom, 2f);
+                    //run the jump and consequences here
+                    var controlled = MyAPIGateway.Session.ControlledObject;
+                    IMyCubeGrid grid = null;
+
+                    if (controlled is Sandbox.ModAPI.Ingame.IMyCockpit)
+                    {
+                        Sandbox.ModAPI.Ingame.IMyCockpit cockpit = (Sandbox.ModAPI.Ingame.IMyCockpit)controlled;
+                        grid = (VRage.Game.ModAPI.IMyCubeGrid)cockpit.CubeGrid; // Get grid from cockpit
+                    }
+                    else if (controlled is Sandbox.ModAPI.Ingame.IMyCryoChamber)
+                    {
+                        Sandbox.ModAPI.Ingame.IMyCryoChamber cryoChamber = (Sandbox.ModAPI.Ingame.IMyCryoChamber)controlled;
+                        grid = (VRage.Game.ModAPI.IMyCubeGrid)cryoChamber.CubeGrid; // Get grid from seat
+                    }
+                    else if (controlled is VRage.Game.ModAPI.IMyCubeGrid)
+                    {
+                        VRage.Game.ModAPI.IMyCubeGrid directGrid = (VRage.Game.ModAPI.IMyCubeGrid)controlled;
+                        grid = directGrid; // Direct grid control
+                    }
+
+                    if (grid == null)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: No grid controlled—select a grid block or sit in cockpit/seat.");
+                        return true;
+                    }
+
+                    double distance;
+                    if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) >= MyPromoteLevel.SpaceMaster && split.Length > 1)
+                    {
+                        if (double.TryParse(split[1], out distance))
+                        {
+                            // Admin: Use specified distance
+                        }
+                        else
+                        {
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Invalid distance—use /override [distance]");
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        // Player: Random 100-1000m
+                        var rand = new Random(DateTime.Now.Millisecond);
+                        distance = rand.Next(100, 1001);
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Random override: {distance:F0}m forward");
+                    }
+
+                    // Calculate forward offset
+                    //Vector3D forwardOffset = grid.WorldMatrix.Forward * distance;
+                    //Vector3D newPos = grid.GetPosition() + forwardOffset;
+                    // Calculate forward offset (player view)
+                    Vector3D playerForward = MyAPIGateway.Session.Player.Character.WorldMatrix.Forward;
+                    Vector3D forwardOffset = playerForward * distance;
+                    Vector3D newPos = grid.GetPosition() + forwardOffset;
+
+                    // Move (uses server/local fallback)
+                    MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
+                    return true;
+                }
+                else if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
                 {
                     //throw a connection to a foreign server from server ie in lobby worlds or we have moved worlds
                     //MyAPIGateway.Multiplayer.JoinServer(Target);
@@ -1649,6 +1741,8 @@ namespace Lobby.scripts
                 {
                     StopLastPlayedSound(); PlaySound(SoundTest, 2f);  //edit sound id in global declarations                  
                 }
+                else if (split[1].Equals("sound6", StringComparison.InvariantCultureIgnoreCase)) //big boom/bang sound
+                { StopLastPlayedSound(); PlaySound(Boom, 2f); }
                 else if (split[1].Equals("sound4", StringComparison.InvariantCultureIgnoreCase) || split[1].Equals("spoolup", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
                 {
                     StopLastPlayedSound(); PlaySound(BadJump, 2f);  //edit sound id in global declarations                  
