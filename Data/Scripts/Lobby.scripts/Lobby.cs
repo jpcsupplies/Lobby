@@ -437,7 +437,7 @@ namespace Lobby.scripts
                     {
                         startTime = DateTime.UtcNow;
                         //if it is a jump override, jam the jump engine until /depart and abort jump countdown
-                        if (chargetime <= 2 && spoolup) { spooling = true; jumping = false; spoolup = false; reply = "Charging *&^%!@@ Error *##//|* /override to cancel, /depart to jump anyway."; }
+                        if (chargetime <= 2 && spoolup) { spooling = true; jumping = false; spoolup = false; reply = "Charging *&^%!@@ Error *##//|* /override to cancel, /depart to jump anyway."; StopLastPlayedSound(); PlaySound(SpoolLoop, 1.2f); }
                         else
                         {
                             chargetime--;
@@ -466,7 +466,7 @@ namespace Lobby.scripts
                        
                         StopLastPlayedSound();
                         spoolCounter = 0;
-                        PlaySound(SpoolLoop, 1.3f);
+                        PlaySound(SpoolLoop, 1.2f);
                     }
                 }
                 else
@@ -1633,11 +1633,12 @@ namespace Lobby.scripts
 
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
             {
+                //are we doing a jump override
                 if (spooling) {
-                    
-                    spooling = false;StopLastPlayedSound();
-                    PlaySound(Boom, 2f);
-                    //run the jump and consequences here
+                    StopLastPlayedSound();
+                    spooling = false;
+                   
+                    //run the jump and consequences here eg set fire to batteries or power, damage jump drive etc
                     var controlled = MyAPIGateway.Session.ControlledObject;
                     IMyCubeGrid grid = null;
 
@@ -1695,7 +1696,8 @@ namespace Lobby.scripts
                     // Move (uses server/local fallback)
                     MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
 
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Travel: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
+                    PlaySound(Boom, 2f);
                     return true;
                 }
                 else if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
