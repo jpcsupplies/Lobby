@@ -115,6 +115,7 @@ namespace Lobby.scripts
         public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
         public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
+        //public bool NoInterstellar = true;
 
 
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
@@ -407,9 +408,12 @@ namespace Lobby.scripts
                     if (UpdateLobby(false))
                     {
                         string reply = "";
-                        if (Target == "0.0.0.0:0" || Target == "none")
-                        { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
-                        else { reply = Zone + " [Type /depart to travel]"; }
+                        if (Target != "0.0.0.0:0" || Target != "none")
+                        {
+                            //reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; } no message if no exit
+                            //else {                            
+                            reply = Zone + " [Type /depart to travel]";
+                        }
                         if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                     }
                     else
@@ -417,13 +421,6 @@ namespace Lobby.scripts
                         Zone = "Scanning...";
                         Target = "none";
                     }
-                    /*
-                    string reply = "";
-                    if (Target == "0.0.0.0:27270" || Target == "none") { reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; }
-                    else { reply = Zone + " [Type /depart to travel]"; }
-
-                    if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
-                     */
                 }
                 counter++;
 
@@ -834,117 +831,78 @@ namespace Lobby.scripts
                         }
                     }
                 }
+
                 // Check interstellar boundaries if no [destination] LCDs found and boundry is valid.
                 // Quiet supresses rechecking and messaging chat too much if we already did in the last cycle??
-                // SupressInterStellar supresses interstellar logic if the boundry is invalid.
+                // SupressInterStellar supresses interstellar logic if the boundry is invalid or disabled.
+                // SO - if check for interstellar - visual effect then return if true (on return audio/visual - make it seperate sub)
+                //    - not intersteller check if we are in buffer then flip bool flag
+                //    - if bool flag display/play audio/visual
                 if (!quiet || !SuppressInterStellar)
                 {
                     double X = position.X; double Y = position.Y; double Z = position.Z;
-                    double range = CubeSize / 2; // Half cube size from center
-                    double buffer = EdgeBuffer; // Use class-level EdgeBuffer
+                    double range = CubeSize / 2; // Half cube size from center, local variable so we can adjust for range check without accidentally changing global cubesize
+                    double buffer = EdgeBuffer; // Use class-level EdgeBuffer in case we need to add corrections code when buffer is bigger than range size at a later point
+                    bool inbuffer = false;
+
+                    // For now, check if beyond exit range set target then return
+                    //this does not cater for overlapping exits, (ie beyond corners) which should probably just act like
+                    //normal space, or only on the longest axis, current behaviour is first come first served which is "good enough"
+                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
+                    else if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
+                    else if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
+                    else if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
+                    else if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
+                    else if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
+                    else { Zone = ""; Target = "none"; } //reset none to check for dead exits later before buffer effects
 
 
-                    // bool deadexit = false;
+                    // Interstellar buffer zone effects
+                    //here we need to check again our proximity to zone to see if we are in buffer zone
+                    //we can recycle the logic since the above return will return before this check if we shift the range check by buffer size
+                    //so being past the new range line will only happen if its a buffer zone here, making things a lot simpler
+                    range -= buffer;
 
-                    // For now, check if beyond range and set target for later buffer deadexit check
-                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; }
-                    else if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; }
-                    else if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; }
-                    else if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; }
-                    else if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; }
-                    else if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; }
-                    /* else { deadexit = true; }
-                     */
+                    //sanity check, if someone keeps getting this error  may need to correct buffer and try again
+                    if (range >= 0) { MyAPIGateway.Utilities.ShowMessage("Error", $"Exit Check Range {range} is or below zero after checking buffer size {buffer} correcting to 20% of {CubeSize / 2}m range"); range = ((CubeSize / 2) - (CubeSize / 2) * 0.2); }
 
-                    // Interstellar buffer zone effects (insert after boundary checks)
-                    if (!quiet && !SuppressInterStellar)
+                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; inbuffer = true; }
+                    if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; inbuffer = true; }
+                    if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; inbuffer = true; }
+                    if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; inbuffer = true; }
+                    if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; inbuffer = true; }
+                    if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; inbuffer = true; }
+
+                    //next we need to check if it is a valid exit or a dead exit or if there are any exits at all and only
+                    //if we detected that we are in a buffer region
+                    //quiet will be true if no interstellar exits exist. (may need to double check that)
+                    //Target will still be none if we are nowhere near a buffer, or if there is no exit after this buffer anyway as it is
+                    //default to none on dead facings
+                    //Suppress interstellar will stop it if interstellar space is disabled
+
+                    if (!quiet && !SuppressInterStellar && Target != "none" && inbuffer)
                     {
-                        //double X = position.X; double Y = position.Y; double Z = position.Z;
-                        double dominantAxis = Math.Max(Math.Max(Math.Abs(X), Math.Abs(Y)), Math.Abs(Z));
-                        double distToBoundary = 0.0;
-                        string facingDirection = "";
+                        //warn of nearing Interstellar space proximity
+                        string cautionMsg = "Caution: Approaching interstellar space.";
+                        cautionMsg += $" Destination {Target} ahead.";
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
 
-                        if (Math.Abs(X) == dominantAxis)
-                        {
-                            distToBoundary = Math.Abs(X) - range;
-                            facingDirection = X > 0 ? "GE" : "GW";
-                        }
-                        else if (Math.Abs(Y) == dominantAxis)
-                        {
-                            distToBoundary = Math.Abs(Y) - range;
-                            facingDirection = Y > 0 ? "GN" : "GS";
-                        }
-                        else if (Math.Abs(Z) == dominantAxis)
-                        {
-                            distToBoundary = Math.Abs(Z) - range;
-                            facingDirection = Z > 0 ? "GU" : "GD";
-                        }
+                        //play clipped 2sec radiation tick sound, volume set by distance to edge
+                        //have disabled volume logic until confirm sound is even working
+                        double intensity = 1.0;// - (Math.Abs(distToBoundary) / buffer); // 1.0 at boundary, 0 at edge
+                                               // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
+                        StopLastPlayedSound();
+                        //PlaySound(Radiation, (float)intensity * 0.4f);
+                        PlayRadiationTicks(2, (float)intensity);
 
-                        // Trigger if within buffer of boundary (absolute distance <= buffer)
-                        if (Math.Abs(distToBoundary) <= buffer)
-                        {
-                            double intensity = 1.0 - (Math.Abs(distToBoundary) / buffer); // 1.0 at boundary, 0 at edge
-
-                            // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
-                            StopLastPlayedSound();
-                            //var radiationSound = new MySoundPair("ArcHudVocRadiationCritical");
-                            PlaySound(Radiation, (float)intensity * 0.4f);
-                            var stopTimer = new Timer(2000); // 2 seconds
-                            stopTimer.Elapsed += (s, e) => StopLastPlayedSound(true);
-                            stopTimer.AutoReset = false;
-                            stopTimer.Start();
-
-                            // Dead exit check - Caution message ONLY if defined exit in direction
-                            bool exitDefined = false;
-                            if (facingDirection == "GE")
-                                exitDefined = !string.IsNullOrEmpty(GE) && GE != "0.0.0.0:0" && GE != "none";
-                            else if (facingDirection == "GW")
-                                exitDefined = !string.IsNullOrEmpty(GW) && GW != "0.0.0.0:0" && GW != "none";
-                            else if (facingDirection == "GN")
-                                exitDefined = !string.IsNullOrEmpty(GN) && GN != "0.0.0.0:0" && GN != "none";
-                            else if (facingDirection == "GS")
-                                exitDefined = !string.IsNullOrEmpty(GS) && GS != "0.0.0.0:0" && GS != "none";
-                            else if (facingDirection == "GU")
-                                exitDefined = !string.IsNullOrEmpty(GU) && GU != "0.0.0.0:0" && GU != "none";
-                            else if (facingDirection == "GD")
-                                exitDefined = !string.IsNullOrEmpty(GD) && GD != "0.0.0.0:0" && GD != "none";
-
-                            // Caution message if destination in direction
-
-                            //if (!string.IsNullOrEmpty(Target) && Target == facingDirection)
-                            if (exitDefined)
-                            {
-                                string cautionMsg = "Caution: Approaching interstellar space.";
-                                cautionMsg += $" Destination {Target} ahead.";
-                                MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
-                            }
-
-
-                            // Placeholder for visual flag (e.g., set flag for streaks/wireframes)
-                            //visualEffectsActive = true; // Set flag for UpdateBeforeSimulation to draw
-
-                            // Optional: Throttle message/sound to every 10 ticks to avoid spam
-                            if (counter % 10 == 0)
-                            {
-                                // Message/sound here (already above)
-                            }
-                        }
-                        else
-                        {
-                            //visualEffectsActive = false; // Clear flag when out of buffer
-                        }
-
-                        // For now, check if beyond range and kick us out if we are. We already set target earlier.
-                        if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { return true; }
-                        if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { return true; }
-                        if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { return true; }
-                        if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { return true; }
-                        if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { return true; }
-                        if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { return true; }
+                        //this would be where we trigger our visual effects sub if any scaled by distance to edge
 
                     }
 
                     /* old logic remove later once testing passes
+                     * old logic allows for individual facing range definition
+                     * replaced by cubesize but noted in case behaviour needs to be
+                     * re-added
                     if (X <= GWP && X < Y && X < Z) { Zone = GWD; Target = GW; return true; }
                     if (X >= GEP && X > Y && X > Z) { Zone = GED; Target = GE; return true; }
                     if (Y <= GSP && Y < X && Y < Z) { Zone = GSD; Target = GS; return true; }
