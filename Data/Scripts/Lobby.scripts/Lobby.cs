@@ -94,11 +94,11 @@ namespace Lobby.scripts
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
-        
+
         //forced spool override effect
         public bool spoolup = false; //are we still spinning it up?
-	    public bool spooling = false; //its stuck spinning
-        private int spoolCounter = 0; 
+        public bool spooling = false; //its stuck spinning
+        private int spoolCounter = 0;
 
         private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
         public string Zone = "";  //placeholder for description of target server
@@ -429,7 +429,7 @@ namespace Lobby.scripts
 
                 //this stuff controls times for charging to jump etc its aethetic only so the sound plays before connect 
                 //         jumping chargetime startTime lockedtarget  
-               
+
                 if (jumping && chargetime > 0)
                 {
                     string reply = "";
@@ -446,7 +446,7 @@ namespace Lobby.scripts
                         MyAPIGateway.Utilities.ShowMessage("", reply);
                     }
                 }
-                
+
                 else if (chargetime <= 0 && jumping)
                 {
                     jumping = false;
@@ -463,7 +463,7 @@ namespace Lobby.scripts
                     if (spoolCounter >= SPOOL_DELAY)
                     {
                         //string reply = $"Charging {chargetime}";  should be random
-                       
+
                         StopLastPlayedSound();
                         spoolCounter = 0;
                         PlaySound(SpoolLoop, 1.2f);
@@ -792,7 +792,7 @@ namespace Lobby.scripts
                         {
                             //we must be at the centre of an Anomaly, reduce damage by half to make exploration viable.
                             //MyAPIGateway.Utilities.ShowMessage("Debug", $"Anomaly middle 50% damage.");
-                            damage = (damage * 0.5f)+1.0f; // Halve in center for anomaly +1 bias
+                            damage = (damage * 0.5f) + 1.0f; // Halve in center for anomaly +1 bias
                         }
                         else
                         {
@@ -843,13 +843,18 @@ namespace Lobby.scripts
                     double range = CubeSize / 2; // Half cube size from center
                     double buffer = EdgeBuffer; // Use class-level EdgeBuffer
 
-                    // For now, check if beyond range (future: subtract buffer for warnings)
-                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
-                    if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
-                    if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
-                    if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
-                    if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
-                    if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
+
+                    // bool deadexit = false;
+
+                    // For now, check if beyond range and set target for later buffer deadexit check
+                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; }
+                    else if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; }
+                    else if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; }
+                    else if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; }
+                    else if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; }
+                    else if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; }
+                    /* else { deadexit = true; }
+                     */
 
                     // Interstellar buffer zone effects (insert after boundary checks)
                     if (!quiet && !SuppressInterStellar)
@@ -889,15 +894,31 @@ namespace Lobby.scripts
                             stopTimer.AutoReset = false;
                             stopTimer.Start();
 
+                            // Dead exit check - Caution message ONLY if defined exit in direction
+                            bool exitDefined = false;
+                            if (facingDirection == "GE")
+                                exitDefined = !string.IsNullOrEmpty(GE) && GE != "0.0.0.0:0" && GE != "none";
+                            else if (facingDirection == "GW")
+                                exitDefined = !string.IsNullOrEmpty(GW) && GW != "0.0.0.0:0" && GW != "none";
+                            else if (facingDirection == "GN")
+                                exitDefined = !string.IsNullOrEmpty(GN) && GN != "0.0.0.0:0" && GN != "none";
+                            else if (facingDirection == "GS")
+                                exitDefined = !string.IsNullOrEmpty(GS) && GS != "0.0.0.0:0" && GS != "none";
+                            else if (facingDirection == "GU")
+                                exitDefined = !string.IsNullOrEmpty(GU) && GU != "0.0.0.0:0" && GU != "none";
+                            else if (facingDirection == "GD")
+                                exitDefined = !string.IsNullOrEmpty(GD) && GD != "0.0.0.0:0" && GD != "none";
+
                             // Caution message if destination in direction
-                            
-                            if (!string.IsNullOrEmpty(Target) && Target == facingDirection)
+
+                            //if (!string.IsNullOrEmpty(Target) && Target == facingDirection)
+                            if (exitDefined)
                             {
                                 string cautionMsg = "Caution: Approaching interstellar space.";
                                 cautionMsg += $" Destination {Target} ahead.";
                                 MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
                             }
-                        
+
 
                             // Placeholder for visual flag (e.g., set flag for streaks/wireframes)
                             //visualEffectsActive = true; // Set flag for UpdateBeforeSimulation to draw
@@ -912,6 +933,15 @@ namespace Lobby.scripts
                         {
                             //visualEffectsActive = false; // Clear flag when out of buffer
                         }
+
+                        // For now, check if beyond range and kick us out if we are. We already set target earlier.
+                        if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { return true; }
+                        if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { return true; }
+                        if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { return true; }
+                        if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { return true; }
+                        if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { return true; }
+                        if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { return true; }
+
                     }
 
                     /* old logic remove later once testing passes
@@ -984,7 +1014,7 @@ namespace Lobby.scripts
                         if (comp != null)
                         {
                             //comp.Radiation.Value += damage; // Add exposure (ignores decay/immunity) Method 1 test
-                            
+
                             float before = comp.Radiation.Value;
                             comp.Radiation.Value += amount;
                             float after = comp.Radiation.Value;
@@ -1014,7 +1044,7 @@ namespace Lobby.scripts
             else if (type == "Oxygen") { }   //Effect Suit Oxygen Level
             else { } //Something Unexpected.
 
-             
+
             //This code almost works, and needs to be run server side once I get it working
             //single player.
             /*
@@ -1637,10 +1667,11 @@ namespace Lobby.scripts
             if (split[0].Equals("/depart", StringComparison.InvariantCultureIgnoreCase) || split[0].Equals("/jump", StringComparison.InvariantCultureIgnoreCase))
             {
                 //are we doing a jump override
-                if (spooling) {
+                if (spooling)
+                {
                     StopLastPlayedSound();
                     spooling = false;
-                   
+
                     //run the jump and consequences here eg set fire to batteries or power, damage jump drive etc
                     var controlled = MyAPIGateway.Session.ControlledObject;
                     IMyCubeGrid grid = null;
@@ -1754,7 +1785,7 @@ namespace Lobby.scripts
                 }
                 else if (split[1].Equals("sound5", StringComparison.InvariantCultureIgnoreCase) || split[1].Equals("spool", StringComparison.InvariantCultureIgnoreCase)) //whatever sound i want to test
                 {
-                    StopLastPlayedSound(); if (spooling) { spooling = false;  } else spooling = true;
+                    StopLastPlayedSound(); if (spooling) { spooling = false; } else spooling = true;
                 }
                 else if (split[1].Equals("sound3", StringComparison.InvariantCultureIgnoreCase)) //radiation tick sound
                 {
