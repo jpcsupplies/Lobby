@@ -875,26 +875,29 @@ namespace Lobby.scripts
                             facingDirection = Z > 0 ? "GU" : "GD";
                         }
 
-                        if (distToBoundary > 0 && distToBoundary <= buffer)
+                        // Trigger if within buffer of boundary (absolute distance <= buffer)
+                        if (Math.Abs(distToBoundary) <= buffer)
                         {
-                            double intensity = 1.0 - (distToBoundary / buffer); // 1.0 at boundary, 0 at edge
+                            double intensity = 1.0 - (Math.Abs(distToBoundary) / buffer); // 1.0 at boundary, 0 at edge
 
                             // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
                             StopLastPlayedSound();
-                            var radiationSound = new MySoundPair("ArcHudVocRadiationCritical");
-                            PlaySound(radiationSound, (float)intensity * 0.4f);
+                            //var radiationSound = new MySoundPair("ArcHudVocRadiationCritical");
+                            PlaySound(Radiation, (float)intensity * 0.4f);
                             var stopTimer = new Timer(2000); // 2 seconds
                             stopTimer.Elapsed += (s, e) => StopLastPlayedSound(true);
                             stopTimer.AutoReset = false;
                             stopTimer.Start();
 
                             // Caution message if destination in direction
-                            string cautionMsg = "Caution: Approaching interstellar space.";
+                            
                             if (!string.IsNullOrEmpty(Target) && Target == facingDirection)
                             {
+                                string cautionMsg = "Caution: Approaching interstellar space.";
                                 cautionMsg += $" Destination {Target} ahead.";
+                                MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
                             }
-                            MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
+                        
 
                             // Placeholder for visual flag (e.g., set flag for streaks/wireframes)
                             //visualEffectsActive = true; // Set flag for UpdateBeforeSimulation to draw
