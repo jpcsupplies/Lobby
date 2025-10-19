@@ -32,7 +32,6 @@ using VRage.Game.ModAPI;
 //using VRage.Game.ModAPI.Ingame;
 using VRage.ModAPI;
 using VRage.Audio;
-using VRage.Game.Components;
 using VRage.Game.ObjectBuilders;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRage.ObjectBuilders;
@@ -859,19 +858,35 @@ namespace Lobby.scripts
 
                     // Interstellar buffer zone effects
                     //here we need to check again our proximity to zone to see if we are in buffer zone
-                    //we can recycle the logic since the above return will return before this check if we shift the range check by buffer size
+                    //we can recycle the logic since the above return will return before this check, so can safely shift the range check by buffer size
                     //so being past the new range line will only happen if its a buffer zone here, making things a lot simpler
-                    range -= buffer;
 
-                    //sanity check, if someone keeps getting this error  may need to correct buffer and try again
-                    if (range >= 0) { MyAPIGateway.Utilities.ShowMessage("Error", $"Exit Check Range {range} is or below zero after checking buffer size {buffer} correcting to 20% of {CubeSize / 2}m range"); range = ((CubeSize / 2) - (CubeSize / 2) * 0.2); }
+                    //First a sanity check so we dont end up with negative range or no bufferzone
+                    if (range > buffer) { range -= buffer; }  //use buffer zone configured if it is smaller than range even if zero
+                    else if (range >= 100 && buffer > 0) { range -= 50; } //use a token buffer check of 50 so long as range is at least 100 and a non zero buffer is set
 
-                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; inbuffer = true; }
-                    if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; inbuffer = true; }
-                    if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; inbuffer = true; }
-                    if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; inbuffer = true; }
-                    if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; inbuffer = true; }
-                    if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; inbuffer = true; }
+                    //another error check, if someone keeps getting this error  may need to correct buffer and try again
+                    //if range is zero or less something has gone horribly wrong fix it and throw an error warning
+                    //even if interstellar zones are disabled it should still have a cubesize value by default
+                    if (range <= 0)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Error", $"Exit Check Range [{range}] is or below zero after checking buffer size [{buffer}]. Correcting buffer to 80% of {CubeSize / 2}m range");
+                        if (CubeSize > 0) { range = ((CubeSize / 2) - (CubeSize / 2) * 0.8); } //20%
+                        else { range = 50; } //again use a token range check of 50 if things are very wrong
+                    }
+
+                    //hold on, do we even have a buffer? 0 means it was disabled.
+                    if (buffer > 0)
+                    {
+                        //set inbuffer true if our position matches a buffer region, any buffer region
+                        if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; inbuffer = true; }
+                        if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; inbuffer = true; }
+                        if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; inbuffer = true; }
+                        if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; inbuffer = true; }
+                        if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; inbuffer = true; }
+                        if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; inbuffer = true; }
+                    }
+                    else { return false; }  //apparently not, no buffer so lets stop things here
 
                     //next we need to check if it is a valid exit or a dead exit or if there are any exits at all and only
                     //if we detected that we are in a buffer region
@@ -2405,9 +2420,10 @@ namespace Lobby.scripts
                     {
                         //if interstellar space is 0 or invalid make edgebuffer 0 so we dont end up with a calculated 0 boundry minus edge buffer value.
                         //to avoid for example an edgebuffer value of -2000
-                        if (parsedBuffer <= 0 || !SuppressInterStellar)
+                        if (parsedBuffer < 0 || !SuppressInterStellar)
                         {
-                            EdgeBuffer = 0; // 2000.0; // Default, or set to 0 to disable buffers
+                            EdgeBuffer = 1001; // 2000.0; // Default, or set to 0 to disable buffers
+                            //using 1001 as debug value
                         }
                         else
                         {
