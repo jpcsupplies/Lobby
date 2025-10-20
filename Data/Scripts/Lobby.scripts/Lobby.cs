@@ -99,6 +99,7 @@ namespace Lobby.scripts
         public bool spooling = false; //its stuck spinning
         private int spoolCounter = 0;
         private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
+        public bool OverrideArmed = false;
 
         public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
@@ -152,7 +153,7 @@ namespace Lobby.scripts
         readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
         readonly MySoundPair Boom = new MySoundPair("ArcWepSmallMissileExplShip");
 
-        
+
         readonly MySoundPair SoundTest = new MySoundPair("ArcWepSmallMissileExpl"); //for /ltest sound0 tests
         /*
                     * A few interesting Sound IDs
@@ -627,7 +628,7 @@ namespace Lobby.scripts
                 var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
                 var sphere2 = new BoundingSphereD(position, StationPrescan()); //popup notification lcds scanrange
                 var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
-                string[] stationTags = new string[] { "[station]", "(station)" };
+                string[] stationTags = new string[] { "[station]", "(station)", "[overrride]" };
                 // old check string[] LCDTags2 = new string[] { "[station]", "(station)" };
 
                 foreach (var block in LCDlist2) //popup station notification lcds
@@ -686,6 +687,12 @@ namespace Lobby.scripts
                                     {
                                         MyAPIGateway.Utilities.ShowMessage("Lobby", $"Station popup suppressed (AllowStationPopupLCD: {AllowStationPopupLCD}, AllowAdminStationPopup: {AllowAdminStationPopup}, IsAdmin: {LCDOwnedByAdmin(textPanel)})");
                                     }
+                                }
+                                //workaround for not having working switch panel pressed / detected code yet for bump/jumps
+                                else if (textPanel.CustomName.Contains("[override]") && !OverrideArmed) {
+                                    OverrideArmed = true;
+                                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Someone seems to have set a jump /override here?");
+
                                 }
                             }
                         }
@@ -938,6 +945,7 @@ namespace Lobby.scripts
                     noZone = true;
                     if (ClearSeenState) { seenPopup = false; }
                     lastStationId = 0; // Clear station tracking
+                    OverrideArmed = false; // we moved away from a grid with an [override] LCD
                     Zone = "Scanning...";
                     Target = "none";
                 }
@@ -951,7 +959,11 @@ namespace Lobby.scripts
             //different options
             //technically this part will only run if no player has spawned in, or if we are a server.
             //Since single/coop/dedicated games all behave differently we a little escape logic here.
-            if (noZone) { seenPopup = false; }
+            if (noZone)
+            {
+                seenPopup = false;
+                OverrideArmed = false; // we moved away from a grid with an [override] LCD? failsafe only.
+            }
             else { noZone = true; }
 
             //fell through a hole
@@ -1625,8 +1637,9 @@ namespace Lobby.scripts
 
             #region depart
             //jump override to force grid jump from voxel
-            //
-            if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase))
+            //only fires if grid has an lcd near player seated position named [override]
+            //should also check if grid is ship or station, it is really only meant for jumping stations out of voxel
+            if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase) && OverrideArmed)
             {
                 //moved to depart
                 //need to trigger a jumping flag type spool up and countdown but stop counting at 17 sec
@@ -1643,7 +1656,7 @@ namespace Lobby.scripts
                 }
                 else
                 {
-                    spoolup = false; jumping = false; StopLastPlayedSound();
+                    spoolup = false; jumping = false; StopLastPlayedSound(); spooling = false;
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Aborting Jump Attempt.");
                 }
 
@@ -1710,11 +1723,16 @@ namespace Lobby.scripts
                     //Vector3D newPos = grid.GetPosition() + forwardOffset;
                     // Calculate forward offset (player view)
                     Vector3D playerForward = MyAPIGateway.Session.Player.Character.WorldMatrix.Forward;
+                    Vector3D playerUp = MyAPIGateway.Session.Player.Character.WorldMatrix.Up;
                     Vector3D forwardOffset = playerForward * distance;
                     Vector3D newPos = grid.GetPosition() + forwardOffset;
 
+                    // Move grid up 50 meters (may need a voxel check here but 50m is placeholder)
+                    newPos += playerUp * 50.0;
+
                     // Move (uses server/local fallback)
                     MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
+                    OverrideArmed = false;
 
                     MyAPIGateway.Utilities.ShowMessage("Lobby", $"Travel: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
                     PlaySound(Boom, 2f);
