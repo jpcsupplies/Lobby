@@ -98,8 +98,8 @@ namespace Lobby.scripts
         public bool spoolup = false; //are we still spinning it up?
         public bool spooling = false; //its stuck spinning
         private int spoolCounter = 0;
-
         private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
+
         public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
         public double CubeSize = 150000000; // Default cube size for boundaries (150,000 km diameter)
@@ -152,7 +152,7 @@ namespace Lobby.scripts
         readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
         readonly MySoundPair Boom = new MySoundPair("ArcWepSmallMissileExplShip");
 
-
+        
         readonly MySoundPair SoundTest = new MySoundPair("ArcWepSmallMissileExpl"); //for /ltest sound0 tests
         /*
                     * A few interesting Sound IDs
@@ -1099,6 +1099,9 @@ namespace Lobby.scripts
             //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am returning from GPS()");
         }
 
+        // Jumping, Bumping, override and General Grid movement logic
+
+
         public void MoveGridRequest(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
         {
             if (grid == null)
@@ -1629,10 +1632,20 @@ namespace Lobby.scripts
                 //need to trigger a jumping flag type spool up and countdown but stop counting at 17 sec
                 //and start outputting gltiches/text while the "spooling" flag is still set and
                 //the scary spinning sound is still playing.
-                spoolup = true;
-                jumping = true; // set off the jump countdown
-                MyAPIGateway.Utilities.ShowMessage("Lobby", "Danger Jump Integrity protocols disabled. /override to abort. Preparing to jump.");
-                StopLastPlayedSound(); PlaySound(BadJump, 2f);
+                //This command is for debuging purpose, override should be triggered by access hatch button named [override]
+                if (!spooling && !jumping)
+                {
+                    spoolup = true;
+                    jumping = true; // set off the jump countdown
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Danger Jump Integrity protocols disabled. /override to abort. Preparing to jump.");
+                    StopLastPlayedSound(); PlaySound(BadJump, 2f);
+
+                }
+                else
+                {
+                    spoolup = false; jumping = false; StopLastPlayedSound();
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Aborting Jump Attempt.");
+                }
 
                 return true;
             }
