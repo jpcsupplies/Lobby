@@ -99,7 +99,7 @@ namespace Lobby.scripts
         public bool spooling = false; //its stuck spinning
         private int spoolCounter = 0;
         private const int SPOOL_DELAY = 112; // 12 ~0.2 seconds at 60 FPS (ticks per second)
-        public bool OverrideArmed = false;
+        //public bool OverrideArmed = false;
 
         public string Zone = "";  //placeholder for description of target server
         public string Target = "none"; //placeholder for server address of target server
@@ -689,11 +689,11 @@ namespace Lobby.scripts
                                     }
                                 }
                                 //workaround for not having working switch panel pressed / detected code yet for bump/jumps
-                                else if (textPanel.CustomName.Contains("[override]") && !OverrideArmed) {
+                                /*else if (textPanel.CustomName.Contains("[override]") && !OverrideArmed) {
                                     OverrideArmed = true;
                                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Someone seems to have set a jump /override here?");
 
-                                }
+                                }*/
                             }
                         }
                     }
@@ -945,7 +945,7 @@ namespace Lobby.scripts
                     noZone = true;
                     if (ClearSeenState) { seenPopup = false; }
                     lastStationId = 0; // Clear station tracking
-                    OverrideArmed = false; // we moved away from a grid with an [override] LCD
+                                       // OverrideArmed = false; // we moved away from a grid with an [override] LCD
                     Zone = "Scanning...";
                     Target = "none";
                 }
@@ -962,7 +962,7 @@ namespace Lobby.scripts
             if (noZone)
             {
                 seenPopup = false;
-                OverrideArmed = false; // we moved away from a grid with an [override] LCD? failsafe only.
+                // OverrideArmed = false; // we moved away from a grid with an [override] LCD? failsafe only.
             }
             else { noZone = true; }
 
@@ -1639,13 +1639,51 @@ namespace Lobby.scripts
             //jump override to force grid jump from voxel
             //only fires if grid has an lcd near player seated position named [override]
             //should also check if grid is ship or station, it is really only meant for jumping stations out of voxel
-            if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase) && OverrideArmed)
+            if (split[0].Equals("/override", StringComparison.InvariantCultureIgnoreCase))
+            //&& OverrideArmed)
             {
                 //moved to depart
                 //need to trigger a jumping flag type spool up and countdown but stop counting at 17 sec
                 //and start outputting gltiches/text while the "spooling" flag is still set and
                 //the scary spinning sound is still playing.
+
                 //This command is for debuging purpose, override should be triggered by access hatch button named [override]
+
+                var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 80);
+                var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
+                IMyTextPanel overrideLCD = null;
+                foreach (var block in LCDlist)
+                {
+                    var textPanel = block as IMyTextPanel;
+                    if (textPanel != null && textPanel.CustomName.ToString().IndexOf("[override]", StringComparison.InvariantCultureIgnoreCase) >= 0)
+                    {
+                        overrideLCD = textPanel;
+                        break;
+                    }
+                }
+
+                //non space master users must have a valid voxel trapped ship with an [override] lcd
+                // if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
+                //  {
+                //   MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+                //return true;
+
+                if (overrideLCD == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "No [override] LCD found nearby.");
+                    return true;
+                }
+
+                var grid = overrideLCD.CubeGrid as IMyCubeGrid;
+                if (grid == null || !grid.IsStatic)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Override jumps only work on voxel-trapped ships.");
+                    return true;
+                }
+                //  }
+                //   else
+                //   { MyAPIGateway.Utilities.ShowMessage("Lobby", "Overriding Override: Found Space Master or higher."); }
+
                 if (!spooling && !jumping)
                 {
                     spoolup = true;
@@ -1656,7 +1694,8 @@ namespace Lobby.scripts
                 }
                 else
                 {
-                    spoolup = false; jumping = false; StopLastPlayedSound(); spooling = false;
+                    spoolup = false; jumping = false; spooling = false; StopLastPlayedSound();
+                    chargetime = 20;
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Aborting Jump Attempt.");
                 }
 
@@ -1683,7 +1722,7 @@ namespace Lobby.scripts
                     else if (controlled is Sandbox.ModAPI.Ingame.IMyCryoChamber)
                     {
                         Sandbox.ModAPI.Ingame.IMyCryoChamber cryoChamber = (Sandbox.ModAPI.Ingame.IMyCryoChamber)controlled;
-                        grid = (VRage.Game.ModAPI.IMyCubeGrid)cryoChamber.CubeGrid; // Get grid from seat
+                        grid = (VRage.Game.ModAPI.IMyCubeGrid)cryoChamber.CubeGrid; // Get grid from cryo
                     }
                     else if (controlled is VRage.Game.ModAPI.IMyCubeGrid)
                     {
@@ -1712,9 +1751,9 @@ namespace Lobby.scripts
                     }
                     else
                     {
-                        // Player: Random 100-1000m
+                        // Player: Random 100-301m
                         var rand = new Random(DateTime.Now.Millisecond);
-                        distance = rand.Next(100, 1001);
+                        distance = rand.Next(100, 301);
                         MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Random override: {distance:F0}m forward");
                     }
 
@@ -1728,17 +1767,28 @@ namespace Lobby.scripts
                     Vector3D newPos = grid.GetPosition() + forwardOffset;
 
                     // Move grid up 50 meters (may need a voxel check here but 50m is placeholder)
-                    newPos += playerUp * 50.0;
+                    // assuming the grid is no more than a few degrees nose down in the dirt.
+                    // compensate for its angle to throw it up clear of voxel.
+                    if (distance <= 101) { newPos += playerUp * 50.0; }
+                    else if (distance >= 200) { newPos += playerUp * 85.0; }
 
                     // Move (uses server/local fallback)
                     MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
-                    OverrideArmed = false;
 
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Travel: Override initiated—grid jumping {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
-                    PlaySound(Boom, 2f);
+                    // Convert to ship if station (for override jumps from voxel)
+                    if (grid.IsStatic)
+                    {
+                        grid.IsStatic = false;
+                        //MyAPIGateway.Utilities.ShowMessage("Lobby", "Grid converted to ship post-jump.");
+                    }
+                    //OverrideArmed = false;
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Travel: Override initiated jump {distance:F0}m forward to {newPos.X:F0},{newPos.Y:F0},{newPos.Z:F0}");
+                    PlaySound(Boom, 2f); spoolup = false; jumping = false; spooling = false; chargetime = 20;
                     return true;
                 }
-                else if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping)
+                //not a jump override must be hopping servers then
+                else if (Zone != "Scanning..." && Target != "none" && Target != "0.0.0.0:27270" && !jumping && !spoolup)
                 {
                     //throw a connection to a foreign server from server ie in lobby worlds or we have moved worlds
                     //MyAPIGateway.Multiplayer.JoinServer(Target);
