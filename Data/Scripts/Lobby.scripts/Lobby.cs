@@ -2510,6 +2510,7 @@ namespace Lobby.scripts
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
         }
+
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
@@ -2597,15 +2598,18 @@ namespace Lobby.scripts
                         //MyAPIGateway.Utilities.ShowMessage("Lobby", "I see [GPS] settings");
                         string coords = parts[0];
                         string colorName = parts[1];
-                        //if we have at least a quoted gps name use that for name, regardless of if they included a long description
-                        if (quoteParts.Length >= 2) { quotedName = quoteParts[1]; } else { quotedName = parts[2]; }
+                        //first try to assign the space seperated text as description in case we have no quoted gps name                     
                         if (parts.Length >= 3) description = string.Join(" ", parts.Skip(3));
+                        //if we have at least a quoted gps name use that for name, regardless of if they included a long description
+                        //and try to get description from past the second quote if anything exists there.
+                        if (quoteParts.Length >= 2) { quotedName = quoteParts[1]; if(quoteParts.Length>2) description = quoteParts[2].Trim(); } else { quotedName = parts[2]; }
+                     
 
                         //never actually runs now since any " prevent " making it into quotedName to remove
                         //if (quotedName.StartsWith("\"") && quotedName.EndsWith("\""))
                         //{
                         //   quotedName = quotedName.Substring(1, quotedName.Length - 2); // Remove quotes
-                        //}
+                        // }
 
                         var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                         double x, y, z;
