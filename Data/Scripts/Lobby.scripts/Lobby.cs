@@ -141,6 +141,26 @@ namespace Lobby.scripts
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         private List<Destination> serverDestinations = new List<Destination>();
 
+        //visual effects system
+        /*
+        private List<Streak> streaks = new List<Streak>();
+        private Random rand = new Random(); // For random positioning
+        private const int MAX_STREAKS = 10; // Number of streaks on screen
+        private float intensity = 1.0f; // 0-1, controls draw delay (higher = more frequent)
+        private float drawDelay = 0.1f; // Base delay (seconds), adjusted by intensity
+        private float lastDrawTime = 0f; // For timing new streaks
+        private DateTime streakStartTime = DateTime.UtcNow; // For elapsed time
+        */
+
+        // Streak struct for short-lived streaks
+        private struct Streak
+        {
+            public Vector2 Start;
+            public Vector2 End;
+            public float StartTime;
+            public float Lifetime; // e.g., 0.5 seconds
+        }
+
         //sound effects system
         private Timer soundTimer; // For repeating sound bursts
         MyEntity3DSoundEmitter emitter;
@@ -915,6 +935,7 @@ namespace Lobby.scripts
                                                // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
                         StopLastPlayedSound();
                         //PlaySound(Radiation, (float)intensity * 0.4f);
+                        DrawStreakEffects(jumping);
                         PlayRadiationTicks(2, (float)intensity);
 
                         //this would be where we trigger our visual effects sub if any scaled by distance to edge
@@ -1547,6 +1568,30 @@ namespace Lobby.scripts
         }
 
         #endregion Audio
+
+        #region visual effects
+        private void DrawStreakEffects(bool jumping)
+        {
+            //meant to draw station/cosmic radiation type visual effects
+            //doesnt work
+           /* Vector3D playerPos = MyAPIGateway.Session.Player.GetPosition();
+
+            // 3 fixed lines near player (world-space, visible on screen)
+            Vector3D start1 = playerPos + new Vector3D(5, 0, 0); // Right of player
+            Vector3D end1 = start1 + new Vector3D(0, 10, 0); // Vertical line
+            //MyAPIGateway.Utilities.DrawLine(start1, end1, Color.White, 1f);
+
+            Vector3D start2 = playerPos + new Vector3D(0, 5, 0); // Above player
+            Vector3D end2 = start2 + new Vector3D(10, 0, 0); // Horizontal line
+           // MyAPIGateway.Utilities.DrawLine(start2, end2, Color.White, 1f);
+
+            Vector3D start3 = playerPos + new Vector3D(-5, 0, 0); // Left of player
+            Vector3D end3 = start3 + new Vector3D(0, 0, 10); // Depth line
+           // MyAPIGateway.Utilities.DrawLine(start3, end3, Color.White, 1f);
+           */
+        }
+
+        #endregion visual effects
 
 
         #region command list
