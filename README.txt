@@ -113,6 +113,25 @@ needing to remotely log into your server to delete it by hand.
 Be sure to use /lconfig beforehand if you have not noted your current network name or
 existing Interstellar exit server addresses if you need to add them again.
 
+There is also an /override jump/bump command.      
+This is for freeing (bumping) a ship (as station) out a voxel.   For instance if an admin 
+manually places an encounter crashed ship,  create an LCD near the cockpit named [override]
+This will allow users to spool up the interstellar jump engine, using /override.  Once
+fully spooled, the user should take a seat and type /depart as prompted.  This will attempt
+a random jump override to free it from voxel.    
+
+Danger/Warning: Forcing your interstellar engine to override its safety protocols can 
+result in severe damage to the ship or its systems.  Trying to jump a ship trapped in voxel
+will overload it, as in theory it is trying to jump the entire planet.   Naturally this will
+fail, but the ship itself will pop out like a cork released under water with unpredicable
+results!   (Yes this is deliberate it is meant as an encounter activity!)
+
+For admins, at the /depart  stage they can specify a distance in metres to force the jump.
+Normal players can only do a single random jump, and it will probably make things explode.
+Admins can also force the interstellar engine to spool up on any grid, not just station
+blocks stuck in voxels, and can do so without an [override] lcd.
+
+
 -
 
 ***************

@@ -438,7 +438,7 @@ namespace Lobby.scripts
                         {
                             //reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; } no message if no exit
                             //else {                            
-                            reply = Zone +  " [Type /depart to travel]";
+                            reply = Zone + " [Type /depart to travel]";
                         }
                         if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                     }
@@ -942,12 +942,13 @@ namespace Lobby.scripts
                                                // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
                         StopLastPlayedSound();
                         //PlaySound(Radiation, (float)intensity * 0.4f);
-                       
+
                         PlayRadiationTicks(2, (float)intensity);
 
                         //this would be where we trigger our visual effects sub if any scaled by distance to edge
 
-                    } else RadioactiveV = false; //not a buffer no visual effects
+                    }
+                    else RadioactiveV = false; //not a buffer no visual effects
 
                     /* old logic remove later once testing passes
                      * old logic allows for individual facing range definition
@@ -1846,26 +1847,26 @@ namespace Lobby.scripts
                 }
 
                 //non space master users must have a valid voxel trapped ship with an [override] lcd
-                // if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
-                //  {
-                //   MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
-                //return true;
-
-                if (overrideLCD == null)
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "No [override] LCD found nearby.");
-                    return true;
-                }
+                    //   MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
+                    //return true;
 
-                var grid = overrideLCD.CubeGrid as IMyCubeGrid;
-                if (grid == null || !grid.IsStatic)
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Override jumps only work on voxel-trapped ships.");
-                    return true;
+                    if (overrideLCD == null)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "No [override] LCD found nearby.");
+                        return true;
+                    }
+
+                    var grid = overrideLCD.CubeGrid as IMyCubeGrid;
+                    if (grid == null || !grid.IsStatic)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Override jumps only work on voxel-trapped ships.");
+                        return true;
+                    }
                 }
-                //  }
-                //   else
-                //   { MyAPIGateway.Utilities.ShowMessage("Lobby", "Overriding Override: Found Space Master or higher."); }
+                else
+                { MyAPIGateway.Utilities.ShowMessage("Lobby", "Overriding Override: Found Space Master or higher."); }
 
                 if (!spooling && !jumping)
                 {
