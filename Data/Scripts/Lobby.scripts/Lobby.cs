@@ -45,6 +45,7 @@ using Sandbox.Definitions;
 using Sandbox.Game.EntityComponents;
 using VRage.Game.Entity;
 using ProtoBuf;
+using BlendTypeEnum = VRageRender.MyBillboard.BlendTypeEnum; // required for MyTransparentGeometry/MySimpleObjectDraw to be able to set blend type.
 
 using Sandbox.Game.Entities.Character.Components; // For MyCharacterStatComponent
 using VRage.Game.Components; // For IMyHazardReceiver
@@ -142,6 +143,7 @@ namespace Lobby.scripts
         private List<Destination> serverDestinations = new List<Destination>();
 
         //visual effects system
+        bool RadioactiveV = false;
         /*
         private List<Streak> streaks = new List<Streak>();
         private Random rand = new Random(); // For random positioning
@@ -409,6 +411,10 @@ namespace Lobby.scripts
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated())
             {
+                //Visual effect test
+                DrawBoundaryLines();
+                if (RadioactiveV) { DrawStaticStreaks2(1.0f); }
+
                 /*if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
                 {
                     SetExits();
@@ -432,7 +438,7 @@ namespace Lobby.scripts
                         {
                             //reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; } no message if no exit
                             //else {                            
-                            reply = Zone + " [Type /depart to travel]";
+                            reply = Zone +  " [Type /depart to travel]";
                         }
                         if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                     }
@@ -913,7 +919,7 @@ namespace Lobby.scripts
                         if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; inbuffer = true; }
                         if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; inbuffer = true; }
                     }
-                    else { return false; }  //apparently not, no buffer so lets stop things here
+                    else { return false; RadioactiveV = false; }  //apparently not, no buffer so lets stop things here
 
                     //next we need to check if it is a valid exit or a dead exit or if there are any exits at all and only
                     //if we detected that we are in a buffer region
@@ -924,9 +930,10 @@ namespace Lobby.scripts
 
                     if (!quiet && !SuppressInterStellar && Target != "none" && inbuffer)
                     {
+                        RadioactiveV = true; //We Need visual effects
                         //warn of nearing Interstellar space proximity
                         string cautionMsg = "Caution: Approaching interstellar space.";
-                        cautionMsg += $" Destination {Target} ahead.";
+                        cautionMsg += $" Destination {Zone} ahead.";
                         MyAPIGateway.Utilities.ShowMessage("Lobby", cautionMsg);
 
                         //play clipped 2sec radiation tick sound, volume set by distance to edge
@@ -935,12 +942,12 @@ namespace Lobby.scripts
                                                // Radiation sound (first 2 seconds of ArcHudVocRadiationCritical)
                         StopLastPlayedSound();
                         //PlaySound(Radiation, (float)intensity * 0.4f);
-                        DrawStreakEffects(jumping);
+                       
                         PlayRadiationTicks(2, (float)intensity);
 
                         //this would be where we trigger our visual effects sub if any scaled by distance to edge
 
-                    }
+                    } else RadioactiveV = false; //not a buffer no visual effects
 
                     /* old logic remove later once testing passes
                      * old logic allows for individual facing range definition
@@ -1570,26 +1577,157 @@ namespace Lobby.scripts
         #endregion Audio
 
         #region visual effects
-        private void DrawStreakEffects(bool jumping)
+
+        private void DrawStaticStreaks2(float intensity = 1.0f)
         {
-            //meant to draw station/cosmic radiation type visual effects
-            //doesnt work
-           /* Vector3D playerPos = MyAPIGateway.Session.Player.GetPosition();
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player.Character == null)
+                return;
 
-            // 3 fixed lines near player (world-space, visible on screen)
-            Vector3D start1 = playerPos + new Vector3D(5, 0, 0); // Right of player
-            Vector3D end1 = start1 + new Vector3D(0, 10, 0); // Vertical line
-            //MyAPIGateway.Utilities.DrawLine(start1, end1, Color.White, 1f);
+            var position = player.Character.GetPosition();
+            var forward = player.Character.WorldMatrix.Forward;
+            var right = player.Character.WorldMatrix.Right;
+            var up = player.Character.WorldMatrix.Up;
 
-            Vector3D start2 = playerPos + new Vector3D(0, 5, 0); // Above player
-            Vector3D end2 = start2 + new Vector3D(10, 0, 0); // Horizontal line
-           // MyAPIGateway.Utilities.DrawLine(start2, end2, Color.White, 1f);
+            int numStreaks = (int)(intensity * 20) + 5; // 5-25 streaks
+            var rand = new Random(counter); // Vary per tick
 
-            Vector3D start3 = playerPos + new Vector3D(-5, 0, 0); // Left of player
-            Vector3D end3 = start3 + new Vector3D(0, 0, 10); // Depth line
-           // MyAPIGateway.Utilities.DrawLine(start3, end3, Color.White, 1f);
-           */
+            MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
+            Vector4 streakColor = new Vector4(1f, 1f, 1f, (float)(0.3 + intensity * 0.7)); // White, alpha scales (0.3-1.0)
+            float thickness = 0.02f + (float)intensity * 0.03f; // Thinner at low intensity
+
+            for (int i = 0; i < numStreaks; i++)
+            {
+                // Random position in 50m sphere around player (uniform FOV)
+                double radiusRand = rand.NextDouble() * 50.0;
+                double thetaRand = rand.NextDouble() * 2 * Math.PI;
+                double phiRand = Math.Acos(2 * rand.NextDouble() - 1);
+                Vector3D offset = new Vector3D(
+                    radiusRand * Math.Sin(phiRand) * Math.Cos(thetaRand),
+                    radiusRand * Math.Sin(phiRand) * Math.Sin(thetaRand),
+                    radiusRand * Math.Cos(phiRand)
+                            );
+                Vector3D start = position + offset;
+
+                Vector3D dir;
+                if (jumping)
+                {
+                    // Jumping: Point away from boundary (e.g., reverse forward for GE)
+                    dir = -forward * rand.NextDouble() * 5; // Away from boundary, short
+                }
+                else if (spooling)
+                {
+                    // Spooling: Spread around crosshair (slight cone)
+                    double angleH = (rand.NextDouble() - 0.5) * Math.PI / 6; // ±30° horizontal
+                    double angleV = (rand.NextDouble() - 0.5) * Math.PI / 12; // ±15° vertical
+                    dir = forward * rand.NextDouble() * 5 + right * Math.Sin(angleH) * 2 + up * Math.Sin(angleV) * 2; // Spread
+                }
+                else
+                {
+                    // General: Uniform random direction
+                    double theta = rand.NextDouble() * 2 * Math.PI;
+                    double phi = rand.NextDouble() * Math.PI;
+                    dir = new Vector3D(
+                        Math.Sin(phi) * Math.Cos(theta),
+                        Math.Sin(phi) * Math.Sin(theta),
+                        Math.Cos(phi)
+                    ) * rand.NextDouble() * 5; // Short streak (0-5m)
+                }
+
+                MyTransparentGeometry.AddLineBillboard(material, streakColor, start, dir, (float)dir.Length(), thickness, BlendTypeEnum.Standard);
+            }
         }
+
+        private void DrawStaticStreaks(float intensity = 1.0f)
+        {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player.Character == null)
+                return;
+
+            var position = player.Character.GetPosition();
+            var forward = player.Character.WorldMatrix.Forward;
+            var right = player.Character.WorldMatrix.Right;
+            var up = player.Character.WorldMatrix.Up;
+
+            int numStreaks = (int)(intensity * 20) + 5; // 5-25 streaks (scale by intensity)
+            var rand = new Random(counter); // Vary per tick
+
+            MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
+            Vector4 streakColor = new Vector4(1f, 1f, 1f, (float)(0.5 + intensity * 0.5)); // White, alpha scales
+            float thickness = 0.02f + (float)intensity * 0.03f; // Thicker with intensity
+
+            for (int i = 0; i < numStreaks; i++)
+            {
+                double dist = rand.NextDouble() * 50 + 10; // 10-60m ahead
+                double angleH = (rand.NextDouble() - 0.5) * Math.PI / 6; // ±30° horizontal
+                double angleV = (rand.NextDouble() - 0.5) * Math.PI / 6; // ±30° vertical
+
+                Vector3D start = position + forward * dist + right * Math.Sin(angleH) * dist * 0.1 + up * Math.Sin(angleV) * dist * 0.1;
+                Vector3D dir = forward * rand.NextDouble() * 5; // Short streak direction (0-5m)
+
+                MyTransparentGeometry.AddLineBillboard(material, streakColor, start, dir, (float)dir.Length(), thickness, BlendTypeEnum.Standard);
+            }
+        }
+
+        private void DrawBoundaryLines()
+        {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player.Character == null)
+                return;
+
+            var position = player.Character.GetPosition();
+            double range = CubeSize / 2; // Half cube size from center
+            double dominantAxis = Math.Max(Math.Max(Math.Abs(position.X), Math.Abs(position.Y)), Math.Abs(position.Z));
+            string facingDirection = "";
+
+            if (Math.Abs(position.X) == dominantAxis)
+            {
+                facingDirection = position.X > 0 ? "GE" : "GW";
+            }
+            else if (Math.Abs(position.Y) == dominantAxis)
+            {
+                facingDirection = position.Y > 0 ? "GN" : "GS";
+            }
+            else if (Math.Abs(position.Z) == dominantAxis)
+            {
+                facingDirection = position.Z > 0 ? "GU" : "GD";
+            }
+
+            // Nearest face center
+            Vector3D faceCenter = position;
+            if (facingDirection == "GE")
+                faceCenter.X = range; // Positive X face
+            else if (facingDirection == "GW")
+                faceCenter.X = -range;
+            else if (facingDirection == "GN")
+                faceCenter.Y = range;
+            else if (facingDirection == "GS")
+                faceCenter.Y = -range;
+            else if (facingDirection == "GU")
+                faceCenter.Z = range;
+            else if (facingDirection == "GD")
+                faceCenter.Z = -range;
+
+            // 4 lines for square face (projected to player view, 50m FOV)
+            Vector3D right = player.Character.WorldMatrix.Right;
+            Vector3D up = player.Character.WorldMatrix.Up;
+            Vector3D faceNear = faceCenter - player.Character.WorldMatrix.Forward * 50.0; // 50m ahead
+            Vector3D v1 = faceNear - right * 25 - up * 25; // Bottom-left
+            Vector3D v2 = faceNear + right * 25 - up * 25; // Bottom-right
+            Vector3D v3 = faceNear + right * 25 + up * 25; // Top-right
+            Vector3D v4 = faceNear - right * 25 + up * 25; // Top-left
+
+            MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
+            Vector4 lineColor = Color.Yellow.ToVector4();
+            float thickness = 0.1f;
+
+            MyTransparentGeometry.AddLineBillboard(material, lineColor, v1, v2, 0, thickness, BlendTypeEnum.Standard);
+            MyTransparentGeometry.AddLineBillboard(material, lineColor, v2, v3, 0, thickness, BlendTypeEnum.Standard);
+            MyTransparentGeometry.AddLineBillboard(material, lineColor, v3, v4, 0, thickness, BlendTypeEnum.Standard);
+            MyTransparentGeometry.AddLineBillboard(material, lineColor, v4, v1, 0, thickness, BlendTypeEnum.Standard);
+        }
+
+
 
         #endregion visual effects
 
