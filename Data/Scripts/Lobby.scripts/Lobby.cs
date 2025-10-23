@@ -118,7 +118,7 @@ namespace Lobby.scripts
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
         //public bool NoInterstellar = true;
 
-
+        //Targets
         public string GW = "0.0.0.0:0"; public double GWP = -10000000; //X
         public string GE = "0.0.0.0:0"; public double GEP = 10000000; //X
         public string GS = "0.0.0.0:0"; public double GSP = -10000000; //Y
@@ -126,12 +126,13 @@ namespace Lobby.scripts
         public string GD = "0.0.0.0:0"; public double GDP = -10000000; //Z
         public string GU = "0.0.0.0:0"; public double GUP = 10000000; //Z
 
-        public string GWD = "Galactic West";  // -X
-        public string GED = "Galactic East";  // +X
-        public string GSD = "Galactic South"; // -Y
-        public string GND = "Galactic North"; // +Y
-        public string GDD = "Galactic Down";  // -Z
-        public string GUD = "Galactic Up";  // +Z
+        //Zones
+        public string GWD = "none";  // -X Galactic West
+        public string GED = "none";  // +X Galactic East
+        public string GSD = "none"; // -Y Galactic South
+        public string GND = "none"; // +Y Galactic North
+        public string GDD = "none";  // -Z Galactic Down
+        public string GUD = "none";  // +Z Galactic Up
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
@@ -411,9 +412,17 @@ namespace Lobby.scripts
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated())
             {
-                //Visual effect test
-                DrawBoundaryLines();
-                if (RadioactiveV) { DrawStaticStreaks2(1.0f); }
+                //Visual effects
+                // Draws lines indication boundry
+                // Not working DrawBoundaryLines();
+                //RadioactiveV means we are in an interstellar exit point boundary region.
+                //needs further tweaking to adjust intesity by distance
+                //probably a simple global number derived by checking how far to edge
+                if (RadioactiveV) { DrawStaticStreaks2(1.0f); }  //random non directional particle static streaks
+
+                //visual effects for override jumps; or just for testing.
+                if (spoolup || spooling) { DrawStaticStreaks2(0.5f); }  //mostly random but directional
+                if (spooling) { DrawStaticStreaks(0.6f); }  // focuses on crosshair
 
                 /*if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
                 {
@@ -434,17 +443,20 @@ namespace Lobby.scripts
                     if (UpdateLobby(false))
                     {
                         string reply = "";
-                        if (Target != "0.0.0.0:0" || Target != "none")
+                        //More aggressive checks so we don't get interstellar /depart prompts for dead exits
+                        if (Target != "0.0.0.0:0" || Target != "none" && Zone != "none")
                         {
                             //reply = "Warning: You have reached the edge of " + Zone + " Interstellar Space"; } no message if no exit
-                            //else {                            
+                            //else {                
+                            //MyAPIGateway.Utilities.ShowMessage("Debug", $"Tar {Target} (not 0.0.0.0:0) Zone {Zone} (not none)");
                             reply = Zone + " [Type /depart to travel]";
+                            if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                         }
-                        if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
+                     
                     }
                     else
                     {
-                        Zone = "Scanning...";
+                        Zone = "none"; //previously Scanning...
                         Target = "none";
                     }
                 }
@@ -531,8 +543,8 @@ namespace Lobby.scripts
         {
             // Update globals from serverDestinations (populated by ParseConfigText)
             GW = GE = GN = GS = GU = GD = "0.0.0.0:0"; // Reset defaults
-            GWD = "Galactic West"; GED = "Galactic East"; GND = "Galactic North";
-            GSD = "Galactic South"; GUD = "Galactic Up"; GDD = "Galactic Down";
+            //GWD = "Galactic West"; GED = "Galactic East"; GND = "Galactic North";
+            //GSD = "Galactic South"; GUD = "Galactic Up"; GDD = "Galactic Down";
 
             double range = CubeSize / 2; // Half for distance from center (e.g., 75,000 km)
             GWP = -range; GSP = -range; GDP = -range;
@@ -875,20 +887,26 @@ namespace Lobby.scripts
                     double X = position.X; double Y = position.Y; double Z = position.Z;
                     double range = CubeSize / 2; // Half cube size from center, local variable so we can adjust for range check without accidentally changing global cubesize
                     double buffer = EdgeBuffer; // Use class-level EdgeBuffer in case we need to add corrections code when buffer is bigger than range size at a later point
-                    bool inbuffer = false;
+                    bool inbuffer = false; bool interstellar = false;
 
                     // For now, check if beyond exit range set target then return
                     //this does not cater for overlapping exits, (ie beyond corners) which should probably just act like
                     //normal space, or only on the longest axis, current behaviour is first come first served which is "good enough"
-                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; return true; }
-                    else if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; return true; }
-                    else if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; return true; }
-                    else if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; return true; }
-                    else if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; return true; }
-                    else if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; return true; }
-                    else { Zone = ""; Target = "none"; } //reset none to check for dead exits later before buffer effects
+                    if (X <= -range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GWD; Target = GW; interstellar = true; }
+                    else if (X >= range && Math.Abs(X) > Math.Abs(Y) && Math.Abs(X) > Math.Abs(Z)) { Zone = GED; Target = GE; interstellar = true; }
+                    else if (Y <= -range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GSD; Target = GS; interstellar = true; }
+                    else if (Y >= range && Math.Abs(Y) > Math.Abs(X) && Math.Abs(Y) > Math.Abs(Z)) { Zone = GND; Target = GN; interstellar = true; }
+                    else if (Z <= -range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GDD; Target = GD; interstellar = true; }
+                    else if (Z >= range && Math.Abs(Z) > Math.Abs(X) && Math.Abs(Z) > Math.Abs(Y)) { Zone = GUD; Target = GU; interstellar = true; }
+                    else { Zone = "none"; Target = "none"; RadioactiveV = false; } //reset none to check for dead exits later before buffer effects
 
-
+                    // is it an interstellar zone
+                    if (interstellar)
+                    {
+                        //is it an active exits zone?
+                        if (Zone != "none") RadioactiveV = true;                        
+                        return true;
+                    }
                     // Interstellar buffer zone effects
                     //here we need to check again our proximity to zone to see if we are in buffer zone
                     //we can recycle the logic since the above return will return before this check, so can safely shift the range check by buffer size
