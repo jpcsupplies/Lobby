@@ -175,6 +175,8 @@ namespace Lobby.scripts
         readonly MySoundPair SpoolLoop = new MySoundPair("BadSpoolLoop"); //1 sec
         readonly MySoundPair Radiation = new MySoundPair("ArcHudVocRadiationCritical");
         readonly MySoundPair Boom = new MySoundPair("ArcWepSmallMissileExplShip");
+        readonly MySoundPair Theme = new MySoundPair("SpacePhoenixX");
+
 
 
         readonly MySoundPair SoundTest = new MySoundPair("ArcWepSmallMissileExpl"); //for /ltest sound0 tests
@@ -452,7 +454,7 @@ namespace Lobby.scripts
                             reply = Zone + " [Type /depart to travel]";
                             if (!jumping) MyAPIGateway.Utilities.ShowMessage("Departure point", reply);
                         }
-                     
+
                     }
                     else
                     {
@@ -904,7 +906,7 @@ namespace Lobby.scripts
                     if (interstellar)
                     {
                         //is it an active exits zone?
-                        if (Zone != "none") RadioactiveV = true;                        
+                        if (Zone != "none") RadioactiveV = true;
                         return true;
                     }
                     // Interstellar buffer zone effects
@@ -2017,6 +2019,26 @@ namespace Lobby.scripts
             {
                 //MyVerReply = "Gateway Lobby 3.4 (server side settings)";
                 MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
+                var credits = "Gateway Lobby MOD\n" +
+                    "A mod for adding more RPG elements and MMORPG like features.\n" +
+                    "Station MOTD, travel between servers, space hazards, territory\n" +
+                    "Lobby worlds etc.\n" +
+                    "Designer: PhoenixX (aka Space Pirate Captain X)\n" +
+                    "Consultants:\n" +
+                    "+Midspace (Aka Screaming Angels) A modding community pioneer.\n" +
+                    "+Gwindalmir (Aka The other Phoenix)\n" +
+                    "+Digi (Hero Coder)\n" +
+                    "+Tyrsis (Hero Pioneer) for adding connect feature to begin with\n" +
+                    "+Anonymous (Current and Former Keen staff)\n" +
+                    "Testers:\n" +
+                    "+Mr Dj Poker (Aka The Space Raider of Ramblers Federal Sector!  /Aargh!/)\n" +
+                    "+Harps (Deep space Explorer of Ramblers Frontier Jupitor Sector)\n " +
+                    "Special Mention:\n" +
+                    "+Malware, Aragath.\n" +
+                    "+'The Order of the Phoenix'(Inside Joke, but hey we got thumbing theme song now)";
+                MyAPIGateway.Utilities.ShowMissionScreen("Credits", "", "Galaxies Project", credits, null, "Cool");
+                StopLastPlayedSound();
+                PlaySound(Theme, 2f);
                 return true;
             }
             #endregion ver
@@ -2620,8 +2642,8 @@ namespace Lobby.scripts
                         if (parts.Length >= 3) description = string.Join(" ", parts.Skip(3));
                         //if we have at least a quoted gps name use that for name, regardless of if they included a long description
                         //and try to get description from past the second quote if anything exists there.
-                        if (quoteParts.Length >= 2) { quotedName = quoteParts[1]; if(quoteParts.Length>2) description = quoteParts[2].Trim(); } else { quotedName = parts[2]; }
-                     
+                        if (quoteParts.Length >= 2) { quotedName = quoteParts[1]; if (quoteParts.Length > 2) description = quoteParts[2].Trim(); } else { quotedName = parts[2]; }
+
 
                         //never actually runs now since any " prevent " making it into quotedName to remove
                         //if (quotedName.StartsWith("\"") && quotedName.EndsWith("\""))
