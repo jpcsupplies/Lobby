@@ -275,10 +275,74 @@ namespace Lobby.scripts
                         MyAPIGateway.Utilities.ShowMessage("LobbyServer", $"Debug: Server moved grid {gridEntityId} to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
                     }
                 }
+            }            
+        }
+        private void ApplyMoveGrid(IMyCubeGrid mainGrid, double x, double y, double z, bool movePlayerIfFree = false)
+        {
+            if (mainGrid == null)
+                return;
+
+            // Save current positions and calculate new ones
+            var entities = new List<IMyEntity> { mainGrid };
+            var currentPositions = new List<Vector3D> { mainGrid.GetPosition() };
+            var newPositions = new List<Vector3D> { new Vector3D(x, y, z) };
+
+            // Add subgrids
+            var subgrids = new HashSet<VRage.ModAPI.IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(subgrids, g => g is IMyCubeGrid && ((IMyCubeGrid)g).Parent == mainGrid);
+            var subgridList = subgrids.OfType<IMyCubeGrid>().ToList();
+            foreach (var subgrid in subgridList)
+            {
+                entities.Add(subgrid);
+                currentPositions.Add(subgrid.GetPosition());
+                Vector3D relativeOffset = subgrid.GetPosition() - mainGrid.GetPosition();
+                newPositions.Add(newPositions[0] + relativeOffset);
+            }
+
+            // Aggregate bounding box for new positions (FTL sample)
+            BoundingBoxD aggregateBox = new BoundingBoxD();
+            for (int i = 0; i < entities.Count; i++)
+            {
+                var entity = entities[i];
+                if (entity != null)
+                {
+                    var box = entity.PositionComp.WorldAABB;
+                    box.Translate(newPositions[i] - currentPositions[i]);
+                    aggregateBox.Include(box);
+                }
+            }
+
+            // Ensure physics space at new location (FTL sample)
+            MyAPIGateway.Physics.EnsurePhysicsSpace(aggregateBox);
+
+            // Set new positions (FTL sample)
+            for (int i = 0; i < entities.Count; i++)
+            {
+                var entity = entities[i];
+                if (entity != null)
+                {
+                    entity.PositionComp.SetPosition(newPositions[i]);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Updated {entity.EntityId} to {newPositions[i]:F0}");
+                }
+            }
+
+            // Optional: Move player if free (not in grid)
+            // this seems to be broken at the moment since our input field for target is coded only for a grid type
+            // need a redesign once we confirm seated sync is working server side so the same module can move players or
+            // grids just as easily to allow the whitehole/wormhole nav hazard to work
+            if (movePlayerIfFree)
+            {
+                var player = MyAPIGateway.Session.Player;
+                if (player != null && player.Character != null && player.Character.Parent == null)
+                {
+                    player.Character.SetPosition(newPositions[0]); // New main grid pos
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Moved free player to new pos");
+                }
             }
         }
 
-        private void ApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
+        //old move method only works offline or self hosted
+        private void OldApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
         {
             if (grid == null)
                 return;
