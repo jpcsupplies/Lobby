@@ -308,6 +308,10 @@ namespace Lobby.scripts
                 subgrid.WorldMatrix = subMatrix;
             }
 
+            // Force sync on dedicated server
+            //grid.NeedsWorldMatrixUpdate = true;
+            //MyAPIGateway.Entities.UpdateEntity(grid);
+
             // Optional: Move player if free (not in grid)
             if (movePlayerIfFree)
             {

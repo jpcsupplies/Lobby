@@ -1178,6 +1178,13 @@ namespace Lobby.scripts
                 ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
                 MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
             }
+            else
+            {
+                //testing a forced move locally even when on dedicated server
+                ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
+                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: !!Forcing!! Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
+
+            }
         }
 
         private void ApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
