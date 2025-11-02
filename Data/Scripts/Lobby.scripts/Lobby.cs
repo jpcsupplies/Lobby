@@ -136,7 +136,7 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.55b (+JumpOverrideAnomalyRadiation Zones)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.56b (+JumpOverrideAnomalyRadiation Zones)";  //mod version
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -1170,14 +1170,21 @@ namespace Lobby.scripts
 
             ulong playerSteamId = MyAPIGateway.Session.Player.SteamUserId;
             string message = $"MoveGrid:{playerSteamId}:{grid.EntityId}:{x}:{y}:{z}:{movePlayerIfFree}";
+            MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
+
+            //A local teleport/hop/jump requires processing client and server side at same time.
+            //send server side
             MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes(message));
+            //also send client side
+            ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
 
             // Local fallback for offline/single-player
-            if (MyAPIGateway.Multiplayer.IsServer)
-            {
-                ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
-            }
+            //needs to go to both reguardless of offline or online
+            // if (MyAPIGateway.Multiplayer.IsServer)
+            // {
+            //      ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
+            //      MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
+            // }
         }
 
         //client side of apply move grid, this really needs to run some extra checks to record things like current player or grid

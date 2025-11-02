@@ -250,7 +250,9 @@ namespace Lobby.scripts
                     }
                 }
             }
-            else if (message.StartsWith("MoveGrid:"))
+            //else 
+            //Should be its own thing, so else cascade doesn't skip
+            if (message.StartsWith("MoveGrid:"))
             {
                 var parts = message.Split(':');
                 if (parts.Length == 6)
@@ -277,6 +279,7 @@ namespace Lobby.scripts
                 }
             }            
         }
+
         private void ApplyMoveGrid(IMyCubeGrid mainGrid, double x, double y, double z, bool movePlayerIfFree = false)
         {
             if (mainGrid == null)
