@@ -136,7 +136,9 @@ namespace Lobby.scripts
 
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        private const string MyVerReply = "Gateway Lobby 3.56b (+JumpOverrideAnomalyRadiation Zones)";  //mod version
+        //Change Version here ------------
+        private const string MyVerReply = "Gateway Lobby 3.571a (+HOP) By Captain X (aka PhoenixX)";  //mod version
+        //Change Version end -------------
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -217,12 +219,9 @@ namespace Lobby.scripts
         /// </summary>
         public void Init()
         {
-            //if (!handlerRegistered)
-            //{
             MyAPIGateway.Utilities.MessageEntered += GotMessage;
-            //handlerRegistered = true;
-            //initDone = true;
-            //}
+ 
+            LobbyTeleport.InitNetworking();
 
             if (!AmIaDedicated())
             {
@@ -256,7 +255,9 @@ namespace Lobby.scripts
                 }
 
                 //Lets let the user know whats up. 
+                MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
+
                 //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
 
                 //Do an initial 5 second pre-warmup waiting on data from server
@@ -291,22 +292,16 @@ namespace Lobby.scripts
         /// </summary>
         protected override void UnloadData()
         {
-            //if (handlerRegistered)
-            //{
             MyAPIGateway.Utilities.MessageEntered -= GotMessage;
-            //   handlerRegistered = false;
-            //}
-            //initTimer?.Stop();
-            //initTimer?.Dispose();
             StopLastPlayedSound(); // Ensure sound cleanup to avoid memory leaks/sound bugs
-            //initDone = false;
-            //MyAPIGateway.Entities.OnEntityAdd -= entity => { if (entity is IMyCubeGrid) UpdateLobby(false); }; // Cleanup
-            base.UnloadData();
+
+            LobbyTeleport.UnloadNetworking();
+
             if (!AmIaDedicated())
             {
                 MyAPIGateway.Multiplayer.UnregisterMessageHandler(MESSAGE_ID, HandleMessage);
             }
-
+            base.UnloadData();
         }
 
 
@@ -2110,28 +2105,21 @@ namespace Lobby.scripts
                     return true;
                 }
 
-                double distance = 100.0; // Default
-                if (split.Length > 1 && double.TryParse(split[1], out distance))
+                if (split.Length < 2)
                 {
-                    // Valid distance
-                }
-                else
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Invalid distance—use /hop [distance].");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <metres>  (e.g. /hop 5000)");
                     return true;
                 }
 
-                // Calculate forward offset
-                Vector3D forwardOffset = character.WorldMatrix.Forward * distance;
-                Vector3D newPos = character.GetPosition() + forwardOffset;
-
-                //move player
-                if (MyAPIGateway.Multiplayer.IsServer)
+                double distance = 0;
+                if (!double.TryParse(split[1], out distance) || distance <= 0)
                 {
-                    character.SetPosition(newPos);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid distance – use a positive number");
+                    return true;
                 }
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Hopped player {distance:F0}m forward to {newPos:X:F0},{newPos:Y:F0},{newPos:Z:F0}");
 
+                long identityId = MyAPIGateway.Session.Player.IdentityId;
+                LobbyTeleport.RequestHop(identityId, distance);
                 return true;
             }
             #endregion depart
@@ -2140,10 +2128,10 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-                //MyVerReply = "Gateway Lobby 3.4 (server side settings)";
+               
                 MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
-                var credits = "Gateway Lobby MOD\n" +
-                    "A mod for adding more RPG elements and MMORPG like features.\n" +
+                var credits = MyVerReply +
+                    "\nA mod for adding more RPG elements and MMORPG like features.\n" +
                     "Station MOTD, travel between servers, space hazards, territory\n" +
                     "Lobby worlds etc.\n" +
                     "Designer: PhoenixX (aka Space Pirate Captain X)\n" +
@@ -2151,14 +2139,14 @@ namespace Lobby.scripts
                     "+Midspace (Aka Screaming Angels) A modding community pioneer.\n" +
                     "+Gwindalmir (Aka The other Phoenix)\n" +
                     "+Digi (Hero Coder)\n" +
-                    "+Tyrsis (Hero Pioneer) for adding connect feature to begin with\n" +
+                    "+Tyrsis (Hero SE Pioneer) for adding connect feature to begin with\n" +
                     "+Anonymous (Current and Former Keen staff)\n" +
                     "Testers:\n" +
                     "+Mr Dj Poker (Aka The Space Raider of Ramblers Federal Sector!  /Aargh!/)\n" +
                     "+Harps (Deep space Explorer of Ramblers Frontier Jupitor Sector)\n " +
                     "Special Mention:\n" +
                     "+Malware, Aragath.\n" +
-                    "+'The Order of the Phoenix'(Inside Joke, but hey we got thumbing theme song now)";
+                    "+'The Order of the Phoenix'(Inside Joke, but hey we got a thumping theme song now..)";
                 MyAPIGateway.Utilities.ShowMissionScreen("Credits", "", "Galaxies Project", credits, null, "Cool");
                 StopLastPlayedSound();
                 PlaySound(Theme, 2f);

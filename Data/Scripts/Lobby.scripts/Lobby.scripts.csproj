@@ -98,6 +98,7 @@
   <ItemGroup>
     <Compile Include="Lobby.cs" />
     <Compile Include="LobbyServer.cs" />
+    <Compile Include="LobbyTeleport.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

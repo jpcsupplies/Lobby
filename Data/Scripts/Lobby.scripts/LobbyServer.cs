@@ -38,12 +38,15 @@ namespace Lobby.scripts
             }
 
             BroadcastConfig();
+            LobbyTeleport.InitNetworking();
         }
 
         protected override void UnloadData()
         {
             if (MyAPIGateway.Multiplayer.IsServer)
                 MyAPIGateway.Multiplayer.UnregisterMessageHandler(MESSAGE_ID, HandleMessage);
+
+            LobbyTeleport.UnloadNetworking();
             base.UnloadData();
         }
 
