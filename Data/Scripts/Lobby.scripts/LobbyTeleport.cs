@@ -309,14 +309,15 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
             // Move on server (syncs to all clients automatically)
             ExecuteHopLocal(player, targetPos);
 
-            // Feedback to sender only
-            SendFeedback(senderSteamId, $"Hop complete: {packet.DistanceMetres:F0}m forward");
+            // Feedback to sender only this code seems to be running twice?
+            //SendFeedback(senderSteamId, $"Hop complete: {packet.DistanceMetres:F0}m forward");
 
             Log($"Hop complete for {senderSteamId}: {targetPos.X:F0}, {targetPos.Y:F0}, {targetPos.Z:F0}");
         }
 
         private static void HandleHopRequestDebug(ushort handlerId, byte[] data, ulong senderSteamId, bool sendToOthers)
         {
+            //this is an older alternate method to do hops kept for reference as it works too
             if (!MyAPIGateway.Session.IsServer) return;
 
             var packet = MyAPIGateway.Utilities.SerializeFromBinary<HopRequestPacket>(data);
