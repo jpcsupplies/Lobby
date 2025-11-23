@@ -220,7 +220,7 @@ namespace Lobby.scripts
         public void Init()
         {
             MyAPIGateway.Utilities.MessageEntered += GotMessage;
- 
+
             LobbyTeleport.InitNetworking();
 
             if (!AmIaDedicated())
@@ -1158,7 +1158,7 @@ namespace Lobby.scripts
         // Jumping, Bumping, override and General Grid movement logic
 
 
-      
+
 
 
 
@@ -1904,7 +1904,7 @@ namespace Lobby.scripts
                         // Player: Random 100-301m
                         var rand = new Random(DateTime.Now.Millisecond);
                         distance = rand.Next(100, 301);
-                       // MyAPIGateway.Utilities.ShowMessage("Lobby", $"Warning: Random insys jump override: {distance:F0}m forward");
+                        // MyAPIGateway.Utilities.ShowMessage("Lobby", $"Warning: Random insys jump override: {distance:F0}m forward");
                     }
 
                     // Calculate forward offset
@@ -1960,17 +1960,17 @@ namespace Lobby.scripts
             }
             if (split[0].Equals("/hop", StringComparison.InvariantCultureIgnoreCase))
             {
-                //this was ment to be used for testing moving players or grids and server side sync
+                //this is ment to be used for testing moving players or grids and server side sync but handy tool for admins too
                 if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Access denied—requires Space Master.");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "SpaceMaster only");
                     return true;
                 }
 
-                var character = MyAPIGateway.Session.Player.Character;
-                if (character == null)
+                // Safety: Character must be loaded (prevents lag/delete accidents)
+                if (MyAPIGateway.Session.Player.Character == null)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: No character for hop.");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Character not loaded – wait and try again");
                     return true;
                 }
 
@@ -1979,17 +1979,8 @@ namespace Lobby.scripts
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <distance> OR /hop <x> <y> <z>");
                     return true;
                 }
-                /*
-                double distance = 0;
-                if (!double.TryParse(split[1], out distance) || distance <= 0)
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid distance – use a positive number");
-                    return true;
-                }
-                */
+
                 long identityId = MyAPIGateway.Session.Player.IdentityId;
-                //LobbyTeleport.RequestHop(identityId, distance);
-                //return true;
 
                 if (split.Length == 2)
                 {
@@ -1998,10 +1989,7 @@ namespace Lobby.scripts
                     if (double.TryParse(split[1], out distance) && distance > 0)
                     {
                         LobbyTeleport.RequestHop(identityId, distance);
-                    }
-                    else
-                    {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid distance – positive number");
+                        return true;
                     }
                 }
                 else if (split.Length == 4)
@@ -2012,16 +2000,11 @@ namespace Lobby.scripts
                     {
                         LobbyTeleport.RequestAbsoluteTeleport(identityId, new Vector3D(x, y, z));
                         MyAPIGateway.Utilities.ShowMessage("Lobby", $"Aye Sir, hopping to {x} {y} {z} coords");
-                    }
-                    else
-                    {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid coords – numbers only");
+                        return true;
                     }
                 }
-                else
-                {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <distance> OR /hop <x> <y> <z>");
-                }
+
+                MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid: /hop <distance> OR /hop <x> <y> <z>");
                 return true;
             }
             #endregion depart
@@ -2030,7 +2013,7 @@ namespace Lobby.scripts
             //ver reply
             if (split[0].Equals("/ver", StringComparison.InvariantCultureIgnoreCase))
             {
-               
+
                 MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
                 var credits = MyVerReply +
                     "\nA mod for adding more RPG elements and MMORPG like features.\n" +

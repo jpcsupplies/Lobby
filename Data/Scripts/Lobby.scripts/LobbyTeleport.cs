@@ -132,31 +132,35 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
         }
 
         // Instant grid hop – works 100% offline and on self-hosted (and will be reused on server later)
-        private static void InstantHopGrid(IMyCubeGrid mainGrid, Vector3D newCenterPos)
+        private static void InstantHopGrid(IMyCubeGrid mainGrid, Vector3D targetWorldPosition)
         {
             if (mainGrid?.Physics == null) return;
 
             var grids = MyAPIGateway.GridGroups.GetGroup(mainGrid, GridLinkTypeEnum.Physical);
-            var offset = newCenterPos - mainGrid.GetPosition();
+            var currentMainPos = mainGrid.GetPosition();
+            var offset = targetWorldPosition - currentMainPos;
 
-            // Optional: preload space (harmless offline)
-            var box = mainGrid.PositionComp.WorldAABB;
-            box.Translate(offset);
-            MyAPIGateway.Physics.EnsurePhysicsSpace(box);
+            // Preload destination area (helps client streaming + prevents physics glitches)
+            var preloadBox = mainGrid.PositionComp.WorldAABB;
+            preloadBox.Translate(offset);
+            MyAPIGateway.Physics.EnsurePhysicsSpace(preloadBox);
 
             foreach (var g in grids)
             {
                 if (g?.PositionComp == null) continue;
+
+                // Move to exact world position
                 g.PositionComp.SetPosition(g.GetPosition() + offset);
+
+                // CRITICAL: Zero velocity & angular velocity – eliminates spin/prediction glitches
+                if (g.Physics != null)
+                {
+                    g.Physics.LinearVelocity = Vector3D.Zero;
+                    g.Physics.AngularVelocity = Vector3D.Zero;
+                }
             }
 
-            foreach (var g in grids)
-            {
-                if (g?.Physics == null) continue;
-                g.PositionComp.SetPosition(g.GetPosition() + offset);
-                g.Physics.LinearVelocity = Vector3D.Zero;  // Stop spin/velocity prediction glitches
-                g.Physics.AngularVelocity = Vector3.Zero;
-            }
+            Log($"InstantHopGrid: {grids.Count} grid(s) moved to {targetWorldPosition.X:F0}, {targetWorldPosition.Y:F0}, {targetWorldPosition.Z:F0}");
         }
 
         /// <summary>
