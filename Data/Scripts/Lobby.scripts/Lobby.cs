@@ -137,7 +137,7 @@ namespace Lobby.scripts
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
         //Change Version here ------------
-        private const string MyVerReply = "Gateway Lobby 3.572a (+HOP/Log/TP) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.572b (+HOP/Log/TP/cleanup) By Captain X (aka PhoenixX)";  //mod version
         //Change Version end -------------
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
@@ -1158,144 +1158,9 @@ namespace Lobby.scripts
         // Jumping, Bumping, override and General Grid movement logic
 
 
-        public void MoveGridRequest(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
-        {
-            if (grid == null)
-                return;
+      
 
-            ulong playerSteamId = MyAPIGateway.Session.Player.SteamUserId;
-            string message = $"MoveGrid:{playerSteamId}:{grid.EntityId}:{x}:{y}:{z}:{movePlayerIfFree}";
-            MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
 
-            //A local teleport/hop/jump requires processing client and server side at same time.
-            //send server side
-            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes(message));
-            //also send client side
-            ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
-
-            // Local fallback for offline/single-player
-            //needs to go to both reguardless of offline or online
-            // if (MyAPIGateway.Multiplayer.IsServer)
-            // {
-            //      ApplyMoveGrid(grid, x, y, z, movePlayerIfFree);
-            //      MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Local grid move to {x:F0},{y:F0},{z:F0}, player free: {movePlayerIfFree}");
-            // }
-        }
-
-        //client side of apply move grid, this really needs to run some extra checks to record things like current player or grid
-        //or be streamlined, it also presumably needs to run this same logic both server and client side at once for grid movement
-        //to sync correctly?   
-        //it seems to be in part broken since it cant actually move a player outside of a grid without crashing
-        //although the client side should locate player id, and the server side needs to have player id passed to it
-        //these should be similar not not identical.
-        //Note: boundingbox seems important in loading grid destinations before moving there?  neet to test this DS mode
-
-        private void ApplyMoveGrid(IMyCubeGrid mainGrid, double x, double y, double z, bool movePlayerIfFree = false)
-        {
-            if (mainGrid == null)
-                return;
-
-            // Save current positions and calculate new ones
-            var entities = new List<IMyEntity> { mainGrid };
-            var currentPositions = new List<Vector3D> { mainGrid.GetPosition() };
-            var newPositions = new List<Vector3D> { new Vector3D(x, y, z) };
-
-            // Add subgrids
-            var subgrids = new HashSet<VRage.ModAPI.IMyEntity>();
-            MyAPIGateway.Entities.GetEntities(subgrids, g => g is IMyCubeGrid && ((IMyCubeGrid)g).Parent == mainGrid);
-            var subgridList = subgrids.OfType<IMyCubeGrid>().ToList();
-            foreach (var subgrid in subgridList)
-            {
-                entities.Add(subgrid);
-                currentPositions.Add(subgrid.GetPosition());
-                Vector3D relativeOffset = subgrid.GetPosition() - mainGrid.GetPosition();
-                newPositions.Add(newPositions[0] + relativeOffset);
-            }
-
-            // Aggregate bounding box for new positions (FTL sample)
-            BoundingBoxD aggregateBox = new BoundingBoxD();
-            for (int i = 0; i < entities.Count; i++)
-            {
-                var entity = entities[i];
-                if (entity != null)
-                {
-                    var box = entity.PositionComp.WorldAABB;
-                    box.Translate(newPositions[i] - currentPositions[i]);
-                    aggregateBox.Include(box);
-                }
-            }
-
-            // Ensure physics space at new location (FTL sample)
-            MyAPIGateway.Physics.EnsurePhysicsSpace(aggregateBox);
-
-            // Set new positions (FTL sample)
-            for (int i = 0; i < entities.Count; i++)
-            {
-                var entity = entities[i];
-                if (entity != null)
-                {
-                    entity.PositionComp.SetPosition(newPositions[i]);
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Updated {entity.EntityId} to {newPositions[i]:F0}");
-                }
-            }
-
-            // Optional: Move player if free (not in grid)
-            // this seems to be broken at the moment since our input field for target is coded only for a grid type
-            // need a redesign once we confirm seated sync is working server side so the same module can move players or
-            // grids just as easily to allow the whitehole/wormhole nav hazard to work
-            if (movePlayerIfFree)
-            {
-                var player = MyAPIGateway.Session.Player;
-                if (player != null && player.Character != null && player.Character.Parent == null)
-                {
-                    player.Character.SetPosition(newPositions[0]); // New main grid pos
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Moved free player to new pos");
-                }
-            }
-        }
-
-        //old move method only works offline or self hosted for comparason and will be removed once server/client grid move works
-        private void OldApplyMoveGrid(IMyCubeGrid grid, double x, double y, double z, bool movePlayerIfFree = false)
-        {
-            if (grid == null)
-                return;
-
-            // Save orientation
-            MatrixD currentMatrix = grid.WorldMatrix;
-
-            // New position
-            Vector3D newPos = new Vector3D(x, y, z);
-            MatrixD newMatrix = currentMatrix;
-            newMatrix.Translation = newPos;
-
-            // Find subgrids (filter attached)
-            var subgrids = new HashSet<VRage.ModAPI.IMyEntity>();
-            MyAPIGateway.Entities.GetEntities(subgrids, g => g is IMyCubeGrid && ((IMyCubeGrid)g).Parent == grid);
-
-            var subgridList = subgrids.OfType<IMyCubeGrid>().ToList();
-
-            // Move main grid
-            grid.WorldMatrix = newMatrix;
-
-            // Re-position subgrids
-            foreach (var subgrid in subgridList)
-            {
-                MatrixD subMatrix = subgrid.WorldMatrix;
-                subMatrix.Translation = subMatrix.Translation + (newPos - grid.GetPosition());
-                subgrid.WorldMatrix = subMatrix;
-            }
-
-            // Optional: Move player if free (not in grid)
-            if (movePlayerIfFree)
-            {
-                var player = MyAPIGateway.Session.Player;
-                if (player != null && player.Character != null && player.Character.Parent == null)
-                {
-                    player.Character.SetPosition(newPos);
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Moved free player to new pos");
-                }
-            }
-        }
 
         private static Color GetColorFromString(string colour)
         {
@@ -1927,6 +1792,10 @@ namespace Lobby.scripts
                 //the scary spinning sound is still playing.
 
                 //This command is for debuging purpose, override should be triggered by access hatch button named [override]
+                //since we couldnt get the button to work yet use an [override] lcd instead on voxel trapped encounter grids
+                //that need to run an override jump
+                //TODO:  an override jump is meant to drain all the power too! plus maybe damage jump drive or reactor a little
+                //maybe damage batterys enough to set on fire etc.  Probably should be a random consequence for it
 
                 var sphere = new BoundingSphereD(MyAPIGateway.Session.Player.GetPosition(), 80);
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
@@ -2035,7 +1904,7 @@ namespace Lobby.scripts
                         // Player: Random 100-301m
                         var rand = new Random(DateTime.Now.Millisecond);
                         distance = rand.Next(100, 301);
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Debug: Random override: {distance:F0}m forward");
+                       // MyAPIGateway.Utilities.ShowMessage("Lobby", $"Warning: Random insys jump override: {distance:F0}m forward");
                     }
 
                     // Calculate forward offset
@@ -2054,11 +1923,8 @@ namespace Lobby.scripts
                     else if (distance >= 200) { newPos += playerUp * 85.0; }
 
                     // Move (uses server/local fallback)
-                   // MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
-
                     long identityId = MyAPIGateway.Session.Player.IdentityId;
                     LobbyTeleport.RequestAbsoluteTeleport(identityId, new Vector3D(newPos.X, newPos.Y, newPos.Z));
-                    //return true;
 
                     // Convert to ship if station (for override jumps from voxel)
                     if (grid.IsStatic)
@@ -2095,7 +1961,6 @@ namespace Lobby.scripts
             if (split[0].Equals("/hop", StringComparison.InvariantCultureIgnoreCase))
             {
                 //this was ment to be used for testing moving players or grids and server side sync
-                //but the code kept going wrong,  basically an offline placeholder at the moment.
                 if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster)
                 {
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Debug: Access denied—requires Space Master.");
