@@ -1976,19 +1976,52 @@ namespace Lobby.scripts
 
                 if (split.Length < 2)
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <metres>  (e.g. /hop 5000)");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <distance> OR /hop <x> <y> <z>");
                     return true;
                 }
-
+                /*
                 double distance = 0;
                 if (!double.TryParse(split[1], out distance) || distance <= 0)
                 {
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid distance – use a positive number");
                     return true;
                 }
-
+                */
                 long identityId = MyAPIGateway.Session.Player.IdentityId;
-                LobbyTeleport.RequestHop(identityId, distance);
+                //LobbyTeleport.RequestHop(identityId, distance);
+                //return true;
+
+                if (split.Length == 2)
+                {
+                    // Forward hop
+                    double distance;
+                    if (double.TryParse(split[1], out distance) && distance > 0)
+                    {
+                        LobbyTeleport.RequestHop(identityId, distance);
+                    }
+                    else
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid distance – positive number");
+                    }
+                }
+                else if (split.Length == 4)
+                {
+                    // Absolute x y z
+                    double x, y, z;
+                    if (double.TryParse(split[1], out x) && double.TryParse(split[2], out y) && double.TryParse(split[3], out z))
+                    {
+                        LobbyTeleport.RequestAbsoluteTeleport(identityId, new Vector3D(x, y, z));
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Aye Sir, hopping to {x} {y} {z} coords");
+                    }
+                    else
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid coords – numbers only");
+                    }
+                }
+                else
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /hop <distance> OR /hop <x> <y> <z>");
+                }
                 return true;
             }
             #endregion depart

@@ -149,6 +149,14 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
                 if (g?.PositionComp == null) continue;
                 g.PositionComp.SetPosition(g.GetPosition() + offset);
             }
+
+            foreach (var g in grids)
+            {
+                if (g?.Physics == null) continue;
+                g.PositionComp.SetPosition(g.GetPosition() + offset);
+                g.Physics.LinearVelocity = Vector3D.Zero;  // Stop spin/velocity prediction glitches
+                g.Physics.AngularVelocity = Vector3.Zero;
+            }
         }
 
         /// <summary>
