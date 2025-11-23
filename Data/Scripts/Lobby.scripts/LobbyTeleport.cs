@@ -18,15 +18,21 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
         // Message IDs – must be unique across the entire mod
         // --------------------------------------------------------------------
         private const ushort TELEPORT_REQUEST_HOP = 18410;
-        //private const ushort TELEPORT_PRELOAD_POSITION = 18411;
-        //private const ushort TELEPORT_CONFIRM_READY = 18412;
         private const ushort TELEPORT_EXECUTE = 18413;
 
         private static System.IO.TextWriter logWriter = null;
         private const string LOG_FILE = "LobbyTeleport.log";
 
         private static bool registered = false;
-
+       // private const ushort TELEPORT_ABSOLUTE_REQUEST = 18415;
+       /*
+        [ProtoContract]
+        private struct AbsoluteTeleportRequestPacket
+        {
+            [ProtoMember(1)] public long IdentityId;
+            [ProtoMember(2)] public Vector3D TargetPos;
+        }
+        */
         [ProtoContract]
         private struct HopRequestPacket
         {
@@ -146,13 +152,13 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
         }
 
         /// <summary>
-        /// Future: Move an arbitrary player (or list of players) + optional grid to exact coordinates.
-        /// Will be used for wormholes, stargates, bouncers, etc.
+        /// Request absolute teleport to exact world position (for /override, /depart, wormholes, etc.).
+        /// Works offline instantly, dedicated server syncs perfectly.
         /// </summary>
-        public static void RequestTeleportPlayers(List<long> identityIds, Vector3D targetWorldPosition, bool moveControlledGrids = true)
+        public static void RequestAbsoluteTeleport(long playerIdentityId, Vector3D targetWorldPos)
         {
-            // placeholder for now
-            MyAPIGateway.Utilities.ShowMessage("LobbyTeleport", "TeleportPlayers placeholder called");
+            // PLACEHOLDER FOR TESTING – will mirror RequestHop logic exactly
+            MyAPIGateway.Utilities.ShowMessage("LobbyTeleport", $"Absolute teleport requested to {targetWorldPos.X:F0}, {targetWorldPos.Y:F0}, {targetWorldPos.Z:F0} (placeholder)");
         }
 
 
@@ -165,7 +171,7 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
 
             MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(TELEPORT_REQUEST_HOP, HandleHopRequest);
             MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(TELEPORT_EXECUTE, HandleExecuteTeleport);
-
+          //  MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(TELEPORT_ABSOLUTE_REQUEST, HandleAbsoluteTeleportRequest);
             registered = true;
             // Open log file for server-side debug
             if (MyAPIGateway.Session.IsServer)

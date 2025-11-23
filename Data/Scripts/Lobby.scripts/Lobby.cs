@@ -137,7 +137,7 @@ namespace Lobby.scripts
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
         //Change Version here ------------
-        private const string MyVerReply = "Gateway Lobby 3.571a (+HOP) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.572a (+HOP/Log/TP) By Captain X (aka PhoenixX)";  //mod version
         //Change Version end -------------
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
@@ -2054,7 +2054,11 @@ namespace Lobby.scripts
                     else if (distance >= 200) { newPos += playerUp * 85.0; }
 
                     // Move (uses server/local fallback)
-                    MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
+                   // MoveGridRequest(grid, newPos.X, newPos.Y, newPos.Z);
+
+                    long identityId = MyAPIGateway.Session.Player.IdentityId;
+                    LobbyTeleport.RequestAbsoluteTeleport(identityId, new Vector3D(newPos.X, newPos.Y, newPos.Z));
+                    //return true;
 
                     // Convert to ship if station (for override jumps from voxel)
                     if (grid.IsStatic)
