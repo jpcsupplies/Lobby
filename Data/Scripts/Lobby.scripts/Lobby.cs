@@ -137,7 +137,7 @@ namespace Lobby.scripts
         private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
         //Change Version here ------------
-        private const string MyVerReply = "Gateway Lobby 3.572b (+HOP/Log/TP/cleanup) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.573a (+HOP/Log/TP/cleanup) By Captain X (aka PhoenixX)";  //mod version
         //Change Version end -------------
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
@@ -222,6 +222,7 @@ namespace Lobby.scripts
             MyAPIGateway.Utilities.MessageEntered += GotMessage;
 
             LobbyTeleport.InitNetworking();
+            LobbyPhysics.InitNetworking();
 
             if (!AmIaDedicated())
             {
@@ -296,6 +297,7 @@ namespace Lobby.scripts
             StopLastPlayedSound(); // Ensure sound cleanup to avoid memory leaks/sound bugs
 
             LobbyTeleport.UnloadNetworking();
+            LobbyPhysics.UnloadNetworking();
 
             if (!AmIaDedicated())
             {
@@ -1926,6 +1928,9 @@ namespace Lobby.scripts
                     long identityId = MyAPIGateway.Session.Player.IdentityId;
                     LobbyTeleport.RequestAbsoluteTeleport(identityId, new Vector3D(newPos.X, newPos.Y, newPos.Z));
 
+                    // Post-jump reeling – side tilt + secondary rotation (combined safely)
+                    LobbyPhysics.ShipStagger(identityId);
+
                     // Convert to ship if station (for override jumps from voxel)
                     if (grid.IsStatic)
                     {
@@ -2008,6 +2013,93 @@ namespace Lobby.scripts
                 return true;
             }
             #endregion depart
+
+            #region physics
+            if (split[0].Equals("/phys", StringComparison.InvariantCultureIgnoreCase))
+            {
+                if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster || MyAPIGateway.Session.Player.Character == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "SpaceMaster + character required");
+                    return true;
+                }
+                if (split.Length >= 4 && split[1].Equals("rot", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    var controlledEntity = MyAPIGateway.Session.Player.Controller?.ControlledEntity?.Entity;
+                    var gridBlock = controlledEntity as IMyCubeBlock;
+                    var grid = gridBlock?.CubeGrid ?? controlledEntity as IMyCubeGrid;
+                    if (grid == null)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "No grid controlled");
+                        return true;
+                    }
+
+                    Base6Directions.Direction axis;
+                    float amount;
+                    if (!Enum.TryParse<Base6Directions.Direction>(split[2], true, out axis) || !float.TryParse(split[3], out amount))
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys rot <Forward|Left|Up|...> <amount>");
+                        return true;
+                    }
+
+                    Vector3D worldAxis;
+                    switch (axis)
+                    {
+                        case Base6Directions.Direction.Forward: worldAxis = grid.WorldMatrix.Forward; break;
+                        case Base6Directions.Direction.Backward: worldAxis = -grid.WorldMatrix.Forward; break;
+                        case Base6Directions.Direction.Left: worldAxis = grid.WorldMatrix.Left; break;
+                        case Base6Directions.Direction.Right: worldAxis = -grid.WorldMatrix.Left; break;
+                        case Base6Directions.Direction.Up: worldAxis = grid.WorldMatrix.Up; break;
+                        case Base6Directions.Direction.Down: worldAxis = -grid.WorldMatrix.Up; break;
+                        default: worldAxis = Vector3D.Zero; break;
+                    }
+
+                    if (worldAxis == Vector3D.Zero)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid axis");
+                        return true;
+                    }
+
+                    long identityId = MyAPIGateway.Session.Player.IdentityId;
+                    LobbyPhysics.ApplyRotation(identityId, worldAxis, amount);
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Reeling {amount:F1}°/s on {axis}");
+                    return true;
+
+                }
+                else if (split.Length == 2 && split[1].Equals("stagger", StringComparison.InvariantCultureIgnoreCase))
+                {
+
+                    long identityId = MyAPIGateway.Session.Player.IdentityId;
+                    LobbyPhysics.ShipStagger(identityId);
+                    return true;
+                }
+                else if (split.Length == 7 && split[1].Equals("well", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    double x, y, z, radius, strength;
+                    if (double.TryParse(split[2], out x) &&
+                        double.TryParse(split[3], out y) &&
+                        double.TryParse(split[4], out z) &&
+                        double.TryParse(split[5], out radius) &&
+                        double.TryParse(split[6], out strength))
+                    {
+                        Vector3D center = new Vector3D(x, y, z);
+                        LobbyPhysics.CreateGravityWell(center, (float)radius, (float)strength);
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Gravity well at {x:F0},{y:F0},{z:F0}");
+                        return true;
+                    }
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Try failed: Usage: /phys well <x> <y> <z> <radius> <strength>");
+                    return true;
+                }
+                else
+                {
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys rot <Forward|Left|Up|...> <amount>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys stagger");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well <x> <y> <z> <radius> <strength>");
+                    return true;
+                }
+            }
+            #endregion physics
 
             #region ver
             //ver reply

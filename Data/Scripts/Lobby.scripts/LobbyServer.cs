@@ -39,6 +39,7 @@ namespace Lobby.scripts
 
             BroadcastConfig();
             LobbyTeleport.InitNetworking();
+            LobbyPhysics.InitNetworking();
         }
 
         protected override void UnloadData()
@@ -47,6 +48,7 @@ namespace Lobby.scripts
                 MyAPIGateway.Multiplayer.UnregisterMessageHandler(MESSAGE_ID, HandleMessage);
 
             LobbyTeleport.UnloadNetworking();
+            LobbyPhysics.UnloadNetworking();
             base.UnloadData();
         }
 

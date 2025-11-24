@@ -14,6 +14,7 @@ Contents in this document:
 
 'How to use'
 	'Keyboard Commands'
+		'Admin Only'
 	'Dynamic LCD Destinations'
 	'Station Pop up Messages (Fun!)'
 	'Interstellar Space Boundry'
@@ -93,7 +94,8 @@ How to use:
 *********************
 * Keyboard commands *
 *********************
-There are not many keyboard commands. This mod mostly makes use of LCDs.
+There are not many keyboard commands. This mod mostly makes use of LCDs or configured
+events like navigation hazards.
 
 Keyboard commands:
 Enter a command into the in game chat box, and it will perform an action.
@@ -101,36 +103,94 @@ Enter a command into the in game chat box, and it will perform an action.
 Enter "/Lhelp" for a list of current commands.
 Enter "/Lhelp #" for more information on that particular command.
 
-There are some additional keyboard commands available for admins. Refer to the 
-"Interstellar Space Boundry" and "Other Configuration Options" for details.
+Version check:
+Enter: /ver
+This displays the current version of mod (and any other mods supporting /ver)
+and some details about the people who helped make it.
 
-If you just want to dry run test the jumping sound, Enter: /Ltest sound
-Note: This will not trigger the 20 second countdown, it just plays the sound.
-
-Admins - if you find yourself with an invalid out out of date configuration, 
-enter "/ltest rest"   to revert your server side config file to default settings without
-needing to remotely log into your server to delete it by hand.
-Be sure to use /lconfig beforehand if you have not noted your current network name or
-existing Interstellar exit server addresses if you need to add them again.
 
 There is also an /override jump/bump command.      
-This is for freeing (bumping) a ship (as station) out a voxel.   For instance if an admin 
-manually places an encounter crashed ship,  create an LCD near the cockpit named [override]
+This is for freeing (bumping) a ship (locked in voxel as station) out a voxel.   
+For instance if an admin manually places an encounter crashed ship,  or you find a random
+one trapped in a voxel, include an LCD near the cockpit named [override]
 This will allow users to spool up the interstellar jump engine, using /override.  Once
 fully spooled, the user should take a seat and type /depart as prompted.  This will attempt
-a random jump override to free it from voxel.    
+a random jump override to free it from voxel. 
 
 Danger/Warning: Forcing your interstellar engine to override its safety protocols can 
 result in severe damage to the ship or its systems.  Trying to jump a ship trapped in voxel
-will overload it, as in theory it is trying to jump the entire planet.   Naturally this will
-fail, but the ship itself will pop out like a cork released under water with unpredicable
-results!   (Yes this is deliberate it is meant as an encounter activity!)
+will overload it, as in theory it is trying to jump the entire asteroid/planet.   Naturally 
+this will fail, but the ship itself will pop out like a cork released under water with 
+unpredicable results!   (Yes this is deliberate it is meant as an encounter activity!)
 
+==========================================================================================
 For admins, at the /depart  stage they can specify a distance in metres to force the jump.
 Normal players can only do a single random jump, and it will probably make things explode.
-Admins can also force the interstellar engine to spool up on any grid, not just station
-blocks stuck in voxels, and can do so without an [override] lcd.
+Admins can also force the interstellar engine to spool up on any ship or station grid, not 
+just station blocks stuck in voxels, and can do so without an [override] lcd.
+Note: Likely the [override] lcd will need to be owned by an admin as a security check.
+Admins should be the ones adding the required LCD until a better way to do this is found.
+==========================================================================================
 
+************
+*Admin Only*
+************
+Note: There are some additional keyboard commands available for admins. Refer to the 
+"Interstellar Space Boundry" and "Other Configuration Options" for details.
+==========================================================================================
+Admins - if you find yourself with an invalid out out of date configuration, 
+enter "/ltest reset"   to revert your server side config file to default settings without
+needing to remotely log into your server to delete it by hand.
+Be sure to use /lconfig beforehand if you have not noted your current network name or 
+existing Interstellar exit server addresses or navigation hazards if you need to add them 
+again.
+==========================================================================================
+
+Admins have several test commands for debugging various mod featues.  
+They can also teleport themselves or the currently controlled grid using the /hop
+command.   It has two operating modes "look" and "Absolute"
+Usage 'Look' Mode:
+1) Face the direction you wish to move
+2) Type "/hop  <DISTANCE>"  
+Example, to hop 10 kms type this: /hop 10000
+
+Usage 'Absolute' Mode:
+1) Work out the X Y Z coordinates you need (You can get these from a saved GPS point)
+2) Type "/hop <X coord> <Y Coord> <Z Coord>"
+Example, to hop to the xyz coordinates x10000,y50000,z100000 type this: 
+/hop 10000 50000 100000
+
+You can also test Physics modifiers such as the rotation effect or gravitational pull
+effect. For example to tilt the current grid sideways 45 degrees: 
+/phys rot right 45
+
+To check the ship stumble/stagger effect:
+/phys stagger
+
+(Not implemented) 
+Or to simulate 0.25 Gravity well from the location 1000,1000,1000, type:
+ /phys well 25 1000 1000 1000
+
+Debugging commands (/ltest /lconfig etc):
+You can do a sound check for all the audio effects.
+If you just want to dry run test the jumping sound, Enter: /Ltest sound
+Note: This will not trigger the 20 second countdown, it just plays the sound.
+Other Examples. 
+/ltest sound0, /ltest sound1, /ltest sound2, /ltest sound3, 
+/ltest sound4, /ltest sound5, /ltest sound6
+Note: sound3 is the radiation ticks, you can also specify volume and interval
+
+Other tests:
+Stop Sound, and general diagnostic check:
+If entered on its own, it will attempt to stop any playing sound effects from the Mod and
+display some basic diagnostic info about popup message status flags range checks etc.
+Example: /ltest
+
+Force a server tick and display more verbose info about that server tick.
+/ltest debug
+
+To give you a rough summary of some of the server side config file settings and exits:
+/lconfig
 
 -
 
@@ -302,11 +362,12 @@ Radius is a figure (in metres) so 1000 is equal to 1km
 
 example:
 [Navigation Warnings]
--341000,24422,11111 80000 danger black hole
+-341000,24422,11111 80000 danger aggressive space pirates
 
 Enter your navigation hazards location then use /lsave to record it.
 
 You can copy and paste the x y and z fields from a GPS point to get the correct location.
+
 
 ********************************
 Special Navigation Warning Types
@@ -341,21 +402,24 @@ example:
 
 
 
-
 *****************************
 Global Server Wide GPS Points
 *****************************
 Global Server Wide GPS Points are definable GPS entries that are automatically given to all 
-players.  Examples might include where all the planets are, or where important locations like trade
-or travel hubs/stations are located or special locations like exit points or mining facilities
-ore locations, asteroids; whatever the server admin wants or needs.
+players.  Examples might include where all the planets are, or where important locations 
+like tradeor travel hubs/stations are located or special locations like exit points or
+mining facilities, ore locations, asteroids; whatever the server admin wants or needs.
 
-To use this feature, open your configuration editor (or manually edit the config file in the map
-storage folder)  and add your Global GPS points under the [GPS] header in the format:
+You could also use this as a sort of 'Admin Curated Unknown/Mystery Signal" for all players
+pointing at an abandoned ship or station, or some server event happening that day.
+
+To use this feature, open your configuration editor (/ledit) 
+(or manually edit the config file in the map storage folder)  and add your Global GPS 
+points under the [GPS] header in the format:
 x,y,z colour "GPS Name" Detailed GPS Description.
 
-An easy way to insert GPS points: On an empty line, Paste in a gps from your own gps list then 
-replace the : with , key in a colour then add a "name" and optionally a description.
+An easy way to insert GPS points: On an empty line, Paste in a gps from your own gps list 
+then replace the : with , key in a colour then add a "name" and optionally a description.
 
 Examples to add all the default planet locations:
 [GPS]

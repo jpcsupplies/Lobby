@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Lobby.cs" />
+    <Compile Include="LobbyPhysics.cs" />
     <Compile Include="LobbyServer.cs" />
     <Compile Include="LobbyTeleport.cs" />
   </ItemGroup>
