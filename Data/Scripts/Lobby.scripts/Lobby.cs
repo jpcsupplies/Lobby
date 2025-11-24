@@ -60,6 +60,26 @@ namespace Lobby.scripts
         [ProtoMember(2)] public string NetworkName; // e.g., "Orion"
         [ProtoMember(3)] public string Description; // e.g., "Ramblers Frontier"
     }
+
+    [ProtoContract]
+    public class NavigationWarning
+    {
+        [ProtoMember(1)] public double X;
+        [ProtoMember(2)] public double Y;
+        [ProtoMember(3)] public double Z;
+        [ProtoMember(4)] public double Radius;
+        [ProtoMember(5)] public string Message;
+        [ProtoMember(6)] public string Type; // "Radiation", "R", "General", "B", "W", "E"
+
+        // New – only used for B/W/E zones, ignored for others
+        [ProtoMember(7)] public double Power = 0;           // pull/push strength
+        [ProtoMember(8)] public double ExitX = 0;           // Whitehole fixed exit
+        [ProtoMember(9)] public double ExitY = 0;
+        [ProtoMember(10)] public double ExitZ = 0;
+        [ProtoMember(11)] public double ExitRadius = 0;
+    }
+
+    /*
     [ProtoContract]
     public class NavigationWarning
     {
@@ -69,7 +89,7 @@ namespace Lobby.scripts
         [ProtoMember(4)] public double Radius;
         [ProtoMember(5)] public string Message;
         [ProtoMember(6)] public string Type; // New: "Radiation" or "General"
-    }
+    }*/
     [ProtoContract]
     public class GlobalGPS
     {
@@ -766,6 +786,14 @@ namespace Lobby.scripts
                     haznumber++;
                     bool Radioactive = false;
                     string typeCode = warning.Type == "Radiation" ? "R" : "Z"; // Z code for general non defined nav hazard, R for radiation.
+                    if (warning.Type == "Blackhole" || warning.Type=="Whitehole" || warning.Type=="Ejector") typeCode = "G"; //G code means some sort of gravity well/effect
+
+                    //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
+                    //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work
+                    //better and will immediately apply the effect, before waiting for the user to get the next hazard warning round.
+                    //Downside is we need an efficient way to make sure the server is tracking positions.
+                    //Another issue is unpiloted grids should also have gravity/damage/teleport effects applied if they enter a G class
+                    //Hazard zone, which would simply not work if that check only occured client side.
                     if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
                     {
                         if (warning.Type == "Radiation") Radioactive = true;
@@ -2674,14 +2702,98 @@ namespace Lobby.scripts
                         string message = string.Join(" ", parts.Skip(2));
 
                         string type = "General"; // Default
+                        //X,Y,Z Radius Long Description
                         if (parts[2].ToLower() == "r" || parts[2].ToLower() == "radiation")
                         {
-                            type = "Radiation";
+                            type = "Radiation"; //Radiactive Zone
                             message = string.Join(" ", parts.Skip(3)); // Shift message if type present
+                            //X,Y,Z Radius Radiation Long Description
+                            //X,Y,Z Radius Radiation Anomaly Long Description
+                            //Normal is random radiation/visuals scaled from centre.
+                            //Anomaly has reduced radiation in middle
+                        }
+                        else if (parts[2].ToLower() == "b" || parts[2].ToLower() == "blackhole")
+                        {
+                            type = "Blackhole"; //deadly gravity well
+                            message = string.Join(" ", parts.Skip(4)); // Shift message if type present
+                            //X,Y,Z Radius Blackhole pull_power Long Description
+                            //X,Y,Z Radius Blackhole Anomaly pull_power Long Description
+                            //Anomaly traps you in Event Horizon (30% from centre minimal damage) exiting event horizon one way teleports to in other side
+                            //Non Anomaly centre crushes you to death, event horizon inescapable (30% from centre scaling damage) random at-radius teleports
+
+                        }
+                        else if (parts[2].ToLower() == "w" || parts[2].ToLower() == "whitehole")
+                        {
+                            type = "Whitehole"; //wormhole
+                            message = string.Join(" ", parts.Skip(3)); // Shift message if type present
+                            //X,Y,Z Radius Whitehole pull_power X,Y,Z(Target) Long Description
+                            //X,Y,Z Radius Whitehole Anomaly pull_power Radius(random teleport) Long Description
+                            //Minor Damage until event horizon, centre teleports you away and adds stagger and velocity
+                        }
+                        else if (parts[2].ToLower() == "e" || parts[2].ToLower() == "eject")
+                        {
+                            type = "Ejector";   //repulsor
+                            message = string.Join(" ", parts.Skip(4)); // Shift message if type present
+                            //x,y,z Radius Eject repulse_power long description
+                            //x,y,z radius Eject Anomaly repulse_power long description
+                            //no damage just push away
                         }
 
-                        double x; double y; double z; double radius;
+                        double x; double y; double z; double radius; //location position and size
+                        double pullpower = 0; //how much pull/push power if applicable
+                        string coords2 = ""; //destination xyz raw string
+                        double Ex = 0; double Ey = 0; double Ez = 0; double Eradius = 0; //exit coords and radius for Eject Zone if any
 
+                        //so we havwe parts[0]; split by space,
+                        //if it is a black hole then parts[0] is xyz, parts[1] is radius, parts[2] is Blackhole/B, parts[3] is pullpower or anomaly, parts[4] is pullpower or part of description
+                        //if it is a white hole then parts[0] is xyz, parts[1] is radius, parts[2] is whitehole/w, parts[3] is pullpower, parts[4] is exit x,y,z, part[5]+ is long description
+                        //if it is a white hole then parts[0] is xyz, parts[1] is radius, parts[2] is whitehole/w, parts[3] is anomaly, parts[4] is pullpower, part[5] is teleradius, part[6]+ is long description
+                        //if it is a eject repulsor then parts[0] is xyz, parts[1] is radius, parts[2] is Ejector/E, parts[3] is repulse pullpower or anomaly, parts[4] is repulse pullpower or part of description
+                        if (type == "Blackhole")
+                        {
+                            if (parts[3].ToLower() == "anomaly") { double.TryParse(parts[4], out pullpower); message = string.Join(" ", parts.Skip(5)); } //adjust description and power input fields if type anomaly
+                            else { double.TryParse(parts[3], out pullpower); } //otherwise the description was already set earlier so just populate power setting 
+                        }
+                        if (type == "Whitehole")
+                        {
+                            //if it is a random type populate radius to kick victims to
+                            if (parts[3].ToLower() == "anomaly") { double.TryParse(parts[4], out pullpower); double.TryParse(parts[5], out Eradius); message = string.Join(" ", parts.Skip(6)); }
+                            else
+                            { // if it is a fixed destination type generate an ejector nav hazard at the exit point to add to list based on whitehole details, flip power backwards
+                                double.TryParse(parts[3], out pullpower); coords2 = parts[4];
+                                var coordExit = coords2.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (coordExit.Length == 3 && double.TryParse(coordExit[0], out Ex) &&
+                                    double.TryParse(coordExit[1], out Ey) &&
+                                    double.TryParse(coordExit[2], out Ez) &&
+                                    double.TryParse(coordExit[3], out radius))
+                                {
+                                    navigationWarnings.Add(new NavigationWarning
+                                    {
+                                        X = Ex,
+                                        Y = Ey,
+                                        Z = Ez,
+                                        Radius = radius / 2,
+                                        Message = "Wormhole Exit",
+                                        Type = "Ejector",
+                                        Power = -pullpower,
+                                        ExitRadius = 0,
+                                        ExitX = 0,
+                                        ExitY = 0,
+                                        ExitZ = 0
+                                    });
+                                }
+                            }
+                        }
+
+                        //this is suboptimal, should rework in the if style below to sanity check values and fail if bad instead - mostly for reference to organise logic in head
+                        if (type == "Ejector")
+                        {
+                            if (parts[3].ToLower() == "anomaly") { double.TryParse(parts[4], out pullpower); message = string.Join(" ", parts.Skip(5)); } //adjust description and power input fields if type anomaly
+                            else { double.TryParse(parts[3], out pullpower); } //otherwise the description was already set earlier so just populate power setting 
+                            pullpower = -pullpower; //flip power negative for ejector
+                        }
+
+                        //Finally We add hazard to Nav Hazard list as appropriate
                         var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                         if (coordParts.Length == 3 && double.TryParse(coordParts[0], out x) &&
                             double.TryParse(coordParts[1], out y) &&
@@ -2695,7 +2807,12 @@ namespace Lobby.scripts
                                 Z = z,
                                 Radius = radius,
                                 Message = message,
-                                Type = type
+                                Type = type,
+                                Power = pullpower,
+                                ExitRadius = Eradius,
+                                ExitX = Ex,
+                                ExitY = Ey,
+                                ExitZ = Ez
                             });
                         }
                     }
