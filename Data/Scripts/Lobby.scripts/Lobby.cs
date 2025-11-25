@@ -154,7 +154,7 @@ namespace Lobby.scripts
         public string GDD = "none";  // -Z Galactic Down
         public string GUD = "none";  // +Z Galactic Up
 
-        private List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
+        public readonly List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
         //Change Version here ------------
         private const string MyVerReply = "Gateway Lobby 3.573a (+HOP/Log/TP/cleanup) By Captain X (aka PhoenixX)";  //mod version
@@ -304,7 +304,7 @@ namespace Lobby.scripts
                 //   quiet = false;
                 // }
                 //else { MyAPIGateway.Utilities.ShowMessage("Note", "Scanning for paths through Interstellar Space.."); }
-            }
+            } //else we are dedicated server
             initDone = true;
         }
 
@@ -527,6 +527,10 @@ namespace Lobby.scripts
                 {
                     spoolCounter = 0; // Reset counter when spooling stops
                 }
+            }
+            else if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
+            {
+                LobbyPhysics.DoPhysicsTick(navigationWarnings);
             }
             base.UpdateAfterSimulation();
         }
@@ -786,7 +790,7 @@ namespace Lobby.scripts
                     haznumber++;
                     bool Radioactive = false;
                     string typeCode = warning.Type == "Radiation" ? "R" : "Z"; // Z code for general non defined nav hazard, R for radiation.
-                    if (warning.Type == "Blackhole" || warning.Type=="Whitehole" || warning.Type=="Ejector") typeCode = "G"; //G code means some sort of gravity well/effect
+                    if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") typeCode = "G"; //G code means some sort of gravity well/effect
 
                     //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
                     //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work

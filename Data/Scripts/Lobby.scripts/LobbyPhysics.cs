@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using VRage.Game.ModAPI;
+using VRage.Game.Components; // for MyDamageType
 using VRageMath;
 using Sandbox.ModAPI;
 using VRage.Game;
@@ -137,7 +138,92 @@ namespace Lobby.scripts
                 $"Gravity pull applied – {affected} entities affected");
         }
 
-        
+        /// <summary>
+        /// Server-side tick: applies gravity wells, damage, teleports
+        /// Called once per frame from Lobby.cs when running on dedicated server
+        /// </summary>
+        public static void DoPhysicsTick(List<NavigationWarning> navigationWarnings)
+        {
+            if (!MyAPIGateway.Session.IsServer) return;
+            if (navigationWarnings == null || navigationWarnings.Count == 0) return;
+
+            var entities = new HashSet<IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(entities);
+
+            int entityCount = 0;
+            while (entityCount < entities.Count)
+            {
+                IMyEntity entity = null;
+                // Manual enumerator to avoid C# 7 pattern matching
+                using (var enumerator = entities.GetEnumerator())
+                {
+                    int moves = 0;
+                    while (moves <= entityCount && enumerator.MoveNext())
+                    {
+                        moves++;
+                    }
+                    if (enumerator.Current != null)
+                        entity = enumerator.Current;
+                }
+
+                if (entity == null || entity.Physics == null || entity.MarkedForClose)
+                {
+                    entityCount++;
+                    continue;
+                }
+
+                foreach (var warning in navigationWarnings)
+                {
+                    if (warning.Type != "B" && warning.Type != "W" && warning.Type != "E") continue;
+
+                    Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                    float radius = (float)warning.Radius;
+                    float power = Math.Abs((float)warning.Power);
+                    bool isPull = warning.Type == "B";
+
+                    Vector3D pos = entity.GetPosition();
+                    Vector3D dir = center - pos;
+                    double dist = dir.Length();
+
+                    if (dist >= radius || dist < 1.0) continue;
+
+                    Vector3D pullDir = Vector3D.Normalize(dir);
+                    float strength = power * (float)(1.0 - dist / radius);
+
+                    // Apply pull (blackhole) or push (eject/whitehole entry)
+                    entity.Physics.LinearVelocity += pullDir * strength * (isPull ? 0.1f : -0.1f);
+
+                    // Blackhole event horizon damage (30% radius)
+                    if (isPull && dist < radius * 0.3f)
+                    {
+                        float damage = 10f + (float)((radius * 0.3f - dist) * 30f);
+
+                        // Damage grids by hitting first block
+                        IMyCubeGrid grid = entity as IMyCubeGrid;
+                        if (grid != null)
+                        {
+                            var blocks = new List<IMySlimBlock>();
+                            grid.GetBlocks(blocks);
+                            if (blocks.Count > 0)
+                            {
+                                blocks[0].DoDamage(damage, MyDamageType.Deformation, true);
+                            }
+                        }
+                        else
+                        {
+                            // Damage character
+                            IMyCharacter character = entity as IMyCharacter;
+                            if (character != null)
+                            {
+                                character.DoDamage(damage, MyDamageType.Deformation, true);
+                            }
+                        }
+                    }
+                }
+
+                entityCount++;
+            }
+        }
 
         private static IMyPlayer GetPlayerByIdentityId(long identityId)
         {
