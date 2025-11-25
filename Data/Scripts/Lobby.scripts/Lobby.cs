@@ -308,6 +308,8 @@ namespace Lobby.scripts
                 // }
                 //else { MyAPIGateway.Utilities.ShowMessage("Note", "Scanning for paths through Interstellar Space.."); }
             } //else we are dedicated server
+
+            
             initDone = true;
         }
 
@@ -2713,6 +2715,9 @@ namespace Lobby.scripts
             bool inNavigationWarnings = false;
             bool inGlobalGPS = false;
 
+
+
+
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
@@ -3068,6 +3073,19 @@ namespace Lobby.scripts
                         bool.TryParse(parts[1], out AllowStationTollLCD);
                     }
                 }
+            }
+            // === Navigation Warnings – now synced from server (or copied from LobbyServer) ===
+            // Old client parsing removed – single source from server
+            if (LobbyServer.ServerNavigationWarnings != null && LobbyServer.ServerNavigationWarnings.Count > 0)
+            {
+                navigationWarnings.Clear();
+                navigationWarnings.AddRange(LobbyServer.ServerNavigationWarnings);
+
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Loaded {navigationWarnings.Count} navigation warnings from server");
+            }
+            else
+            {
+               // MyAPIGateway.Utilities.ShowMessage("Lobby", "No nav warnings from server – using defaults");
             }
 
             // Update globals with CubeSize

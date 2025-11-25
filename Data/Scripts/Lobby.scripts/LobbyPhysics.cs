@@ -92,10 +92,41 @@ namespace Lobby.scripts
         private static readonly HashSet<long> ActiveGravityWells = new HashSet<long>();
         private static long nextWellId = 1;
 
+        // ---------------------------
+        // Server Safe Gravity Well
+        // ---------------------------
+        public static void CreateGravityWell(Vector3D center, float radius, float strength)
+        {
+            var entities = new HashSet<VRage.ModAPI.IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(entities);
+
+            int affected = 0;
+
+            foreach (var entity in entities)
+            {
+                if (entity == null || entity.Physics == null || entity.MarkedForClose) continue;
+
+                Vector3D pos = entity.GetPosition();
+                Vector3D dir = center - pos;
+                double dist = dir.Length();
+                if (dist >= radius || dist < 1) continue;
+
+                Vector3D pullDir = Vector3D.Normalize(dir);
+                float pull = strength * (float)(1.0 - dist / radius);
+
+                // Pull (positive strength) or push (negative strength)
+                entity.Physics.LinearVelocity += pullDir * pull * 0.1f;
+
+                affected++;
+            }
+
+            MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
+        }
+
         // --------------------------------------------------------------------
         // Gravity Well – simple one-shot pull (offline testable, no timer)
         // --------------------------------------------------------------------
-        public static void CreateGravityWell(Vector3D center, float radius, float strength)
+        public static void ClientCreateGravityWell(Vector3D center, float radius, float strength)
         {
             var entities = new HashSet<VRage.ModAPI.IMyEntity>();
             MyAPIGateway.Entities.GetEntities(entities);
@@ -143,6 +174,26 @@ namespace Lobby.scripts
         /// Called once per frame from Lobby.cs when running on dedicated server
         /// </summary>
         public static void DoPhysicsTick()
+        {
+            if (!MyAPIGateway.Session.IsServer) return;
+            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
+                return;
+
+            foreach (var warning in LobbyServer.ServerNavigationWarnings)
+            {
+                // Only gravity zones
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector")
+                    continue;
+
+                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                float radius = (float)warning.Radius;
+                float strength = (float)warning.Power; // positive = pull, negative = push
+
+                CreateGravityWell(center, radius, strength);
+            }
+        }
+
+        public static void OldDoPhysicsTick()
         {
             if (!MyAPIGateway.Session.IsServer) return;
 
