@@ -262,10 +262,13 @@ namespace Lobby.scripts
 
                 // Register client network handler
                 MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleMessage);
+                MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleServerNavWarnings);
 
                 // Request config from server
                 MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
-
+                // Request navigation warnings from server
+                //MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestNavWarnings:" + MyAPIGateway.Session.Player.SteamUserId));
+                MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestNavWarnings"));
                 ParseConfigText(LoadConfigText()); // Fallback to local if no server response
 
                 // Check and create default config
@@ -397,6 +400,7 @@ namespace Lobby.scripts
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset complete: Defaults regenerated.");
             }
+            
             else if (message == "AccessDenied")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
@@ -415,6 +419,26 @@ namespace Lobby.scripts
                 long ownerId = long.Parse(parts[1]);
                 bool isAdmin = bool.Parse(parts[2]);
                 adminCache[ownerId] = isAdmin;
+            }
+            else if (message.StartsWith("NavWarningsSync:"))
+            {
+                try
+                {
+                    string b64 = message.Substring(15);
+                    byte[] binaryData = Convert.FromBase64String(b64);
+                    var receivedList = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(binaryData);
+
+                    navigationWarnings.Clear();
+                    navigationWarnings.AddRange(receivedList);
+
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Synced {navigationWarnings.Count} nav warnings from server");
+                }
+                catch
+                {
+                    // Fallback to local parse if sync fails
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Nav sync failed – using local");
+                }
+                return;   //does this need to be here? the others dont use it..
             }
 
         }
@@ -530,7 +554,7 @@ namespace Lobby.scripts
             }
             else if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
             {
-                LobbyPhysics.DoPhysicsTick(navigationWarnings);
+                LobbyPhysics.DoPhysicsTick();
             }
             base.UpdateAfterSimulation();
         }
@@ -2670,7 +2694,17 @@ namespace Lobby.scripts
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
         }
-
+        private void HandleServerNavWarnings(byte[] data)
+        {
+            try
+            {
+                var received = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(data);
+                navigationWarnings.Clear();
+                navigationWarnings.AddRange(received);
+                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Received {navigationWarnings.Count} nav warnings from server");
+            }
+            catch { }
+        }
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
@@ -2685,7 +2719,9 @@ namespace Lobby.scripts
 
 
 
-                //Nav warning logic
+                //Nav warning logic - pulled from server side now at LobbyServer.ParseNavigationWarningsServer();
+                //Original logic retained in case needed to rework server hazardlist builder
+                /*
                 if (trimmed.StartsWith("[Navigation Warnings]"))
                 {
                     inNavigationWarnings = true;
@@ -2784,7 +2820,7 @@ namespace Lobby.scripts
                                         ExitX = 0,
                                         ExitY = 0,
                                         ExitZ = 0
-                                    });
+                                    }); 
                                 }
                             }
                         }
@@ -2818,9 +2854,9 @@ namespace Lobby.scripts
                                 ExitY = Ey,
                                 ExitZ = Ez
                             });
-                        }
+                        } 
                     }
-                }
+                } */
 
                 //global GPS logic
                 if (trimmed.StartsWith("[GPS]"))

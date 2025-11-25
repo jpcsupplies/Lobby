@@ -1,4 +1,4 @@
-
+﻿
 using System;
 using System.Text;
 using System.Collections.Generic;
@@ -23,6 +23,8 @@ namespace Lobby.scripts
     {
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345;
+        public static List<NavigationWarning> ServerNavigationWarnings = new List<NavigationWarning>();
+
 
         public override void BeforeStart()
         {
@@ -36,10 +38,278 @@ namespace Lobby.scripts
                 SaveConfigText(LobbyScript.DefaultConfig);
                 //[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
             }
-
             BroadcastConfig();
+            ParseNavigationWarningsServer(LoadConfigText());
+         
             LobbyTeleport.InitNetworking();
             LobbyPhysics.InitNetworking();
+        }
+
+        //Built the list of Navigation hazards server side so we know where to apply physics effects in the game world.
+        private void ParseNavigationWarningsServer(string configText)
+        {
+            ServerNavigationWarnings.Clear();
+
+            var lines = configText.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            bool inNavigationWarnings = false;
+
+            foreach (var lineRaw in lines)
+            {
+                string trimmed = lineRaw.Trim();
+
+                if (trimmed.StartsWith("[Navigation Warnings]", StringComparison.OrdinalIgnoreCase))
+                {
+                    inNavigationWarnings = true;
+                    continue;
+                }
+
+                if (inNavigationWarnings && trimmed.StartsWith("[") && !trimmed.StartsWith("[Navigation Warnings]"))
+                {
+                    inNavigationWarnings = false;
+                }
+
+                if (!inNavigationWarnings || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+                var parts = trimmed.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 3) continue;
+
+                string coords = parts[0];
+                string radiusStr = parts[1];
+                string message = string.Join(" ", parts.Skip(2));
+
+                string type = "General";
+                double pullpower = 0;
+                string coords2 = "";
+                double Ex = 0, Ey = 0, Ez = 0, Eradius = 0;
+
+                if (parts.Length > 2)
+                {
+                    string possibleType = parts[2].ToLowerInvariant();
+
+                    if (possibleType == "r" || possibleType == "radiation")
+                    {
+                        type = "Radiation";
+                        message = string.Join(" ", parts.Skip(3));
+                    }
+                    else if (possibleType == "b" || possibleType == "blackhole")
+                    {
+                        type = "Blackhole";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                        else if (parts.Length > 3)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            message = string.Join(" ", parts.Skip(4));
+                        }
+                    }
+                    else if (possibleType == "w" || possibleType == "whitehole")
+                    {
+                        type = "Whitehole";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            double.TryParse(parts[5], out Eradius);
+                            message = string.Join(" ", parts.Skip(6));
+                        }
+                        else if (parts.Length > 6)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            coords2 = parts[4];
+                            var coordExit = coords2.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (coordExit.Length == 3)
+                            {
+                                double.TryParse(coordExit[0], out Ex);
+                                double.TryParse(coordExit[1], out Ey);
+                                double.TryParse(coordExit[2], out Ez);
+                            }
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                    }
+                    else if (possibleType == "e" || possibleType == "eject")
+                    {
+                        type = "Ejector";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                        else if (parts.Length > 3)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            message = string.Join(" ", parts.Skip(4));
+                        }
+                        pullpower = -pullpower;
+                    }
+                }
+
+                var coordParts = coords.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (coordParts.Length == 3)
+                {
+                    double x, y, z, radius;
+                    if (double.TryParse(coordParts[0], out x) &&
+                        double.TryParse(coordParts[1], out y) &&
+                        double.TryParse(coordParts[2], out z) &&
+                        double.TryParse(radiusStr, out radius) && radius > 0)
+                    {
+                        ServerNavigationWarnings.Add(new NavigationWarning
+                        {
+                            X = x,
+                            Y = y,
+                            Z = z,
+                            Radius = radius,
+                            Message = message,
+                            Type = type,
+                            Power = pullpower,
+                            ExitX = Ex,
+                            ExitY = Ey,
+                            ExitZ = Ez,
+                            ExitRadius = Eradius
+                        });
+
+                        // Fixed-exit Whitehole → auto-add Ejector at exit
+                        if (type == "Whitehole" && Ex != 0 && radius > 0)
+                        {
+                            ServerNavigationWarnings.Add(new NavigationWarning
+                            {
+                                X = Ex,
+                                Y = Ey,
+                                Z = Ez,
+                                Radius = radius * 0.5,
+                                Message = "Wormhole Exit – Repulsion Field",
+                                Type = "Ejector",
+                                Power = -pullpower * 1.5
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        //remove this later for cleanup
+        private void Old_ParseNavigationWarningsServer(string configText)
+        {
+            ServerNavigationWarnings.Clear();
+
+            var lines = configText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            bool inNavigationWarnings = false;
+
+            foreach (var lineRaw in lines)
+            {
+                string trimmed = lineRaw.Trim();
+                if (trimmed.StartsWith("[Navigation Warnings]", StringComparison.OrdinalIgnoreCase))
+                {
+                    inNavigationWarnings = true;
+                    continue;
+                }
+                if (inNavigationWarnings && trimmed.StartsWith("[") && !trimmed.StartsWith("[Navigation Warnings]"))
+                {
+                    inNavigationWarnings = false;
+                }
+                if (!inNavigationWarnings || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+                var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 3) continue;
+
+                string coords = parts[0];
+                string radiusStr = parts[1];
+                string message = string.Join(" ", parts.Skip(2));
+
+                string type = "General";
+                double pullpower = 0;
+                string coords2 = "";
+                double Ex = 0, Ey = 0, Ez = 0, Eradius = 0;
+
+                if (parts.Length > 2)
+                {
+                    string possibleType = parts[2].ToLowerInvariant();
+                    if (possibleType == "r" || possibleType == "radiation")
+                    {
+                        type = "Radiation";
+                        message = string.Join(" ", parts.Skip(3));
+                    }
+                    else if (possibleType == "b" || possibleType == "blackhole")
+                    {
+                        type = "Blackhole";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                        else if (parts.Length > 3)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            message = string.Join(" ", parts.Skip(4));
+                        }
+                    }
+                    else if (possibleType == "w" || possibleType == "whitehole")
+                    {
+                        type = "Whitehole";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            double.TryParse(parts[5], out Eradius);
+                            message = string.Join(" ", parts.Skip(6));
+                        }
+                        else if (parts.Length > 6)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            coords2 = parts[4];
+                            var coordExit = coords2.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (coordExit.Length == 3)
+                            {
+                                double.TryParse(coordExit[0], out Ex);
+                                double.TryParse(coordExit[1], out Ey);
+                                double.TryParse(coordExit[2], out Ez);
+                            }
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                    }
+                    else if (possibleType == "e" || possibleType == "eject")
+                    {
+                        type = "Ejector";
+                        if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
+                        {
+                            double.TryParse(parts[4], out pullpower);
+                            message = string.Join(" ", parts.Skip(5));
+                        }
+                        else if (parts.Length > 3)
+                        {
+                            double.TryParse(parts[3], out pullpower);
+                            message = string.Join(" ", parts.Skip(4));
+                        }
+                        pullpower = -pullpower; // flip to push
+                    }
+                }
+
+                var coordParts = coords.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (coordParts.Length == 3)
+                {
+                    double x, y, z, radius;
+                    if (double.TryParse(coordParts[0], out x) &&
+                        double.TryParse(coordParts[1], out y) &&
+                        double.TryParse(coordParts[2], out z) &&
+                        double.TryParse(radiusStr, out radius) && radius > 0)
+                    {
+                        ServerNavigationWarnings.Add(new NavigationWarning
+                        {
+                            X = x,
+                            Y = y,
+                            Z = z,
+                            Radius = radius,
+                            Message = message,
+                            Type = type,
+                            Power = pullpower,
+                            ExitX = Ex,
+                            ExitY = Ey,
+                            ExitZ = Ez,
+                            ExitRadius = Eradius
+                        });
+                    }
+                }
+            }
         }
 
         protected override void UnloadData()
@@ -106,6 +376,19 @@ namespace Lobby.scripts
                 bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes($"AdminStatus:{steamId}:{isAdmin}"), steamId);
             }
+            else if (message == "RequestNavWarnings")
+            {
+                byte[] Mydata = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+                string b64 = Convert.ToBase64String(Mydata);
+                MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("NavWarningsSync:" + b64));
+                return;
+            }
+           /* else if (message.StartsWith("RequestNavWarnings:"))
+            {
+                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                byte[] MyData = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, MyData, steamId);
+            } */
             else if (message.StartsWith("ltest reset"))
             {
                 ulong steamId = ulong.Parse(message.Split(':')[1]);

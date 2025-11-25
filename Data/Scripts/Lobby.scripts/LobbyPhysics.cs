@@ -142,50 +142,33 @@ namespace Lobby.scripts
         /// Server-side tick: applies gravity wells, damage, teleports
         /// Called once per frame from Lobby.cs when running on dedicated server
         /// </summary>
-        public static void DoPhysicsTick(List<NavigationWarning> navigationWarnings)
+        public static void DoPhysicsTick()
         {
             if (!MyAPIGateway.Session.IsServer) return;
-            if (navigationWarnings == null || navigationWarnings.Count == 0) return;
+
+            // Use the server-side list from LobbyServer
+            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
+                return;
 
             var entities = new HashSet<IMyEntity>();
-            MyAPIGateway.Entities.GetEntities(entities);
+            MyAPIGateway.Entities.GetEntities(entities, e => e?.Physics != null && !e.MarkedForClose);
 
-            int entityCount = 0;
-            while (entityCount < entities.Count)
+            foreach (var warning in LobbyServer.ServerNavigationWarnings)
             {
-                IMyEntity entity = null;
-                // Manual enumerator to avoid C# 7 pattern matching
-                using (var enumerator = entities.GetEnumerator())
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector") continue;
+
+                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                float radius = (float)warning.Radius;
+                float power = Math.Abs((float)warning.Power);
+                bool isPull = warning.Type == "Blackhole";
+
+
+                foreach (var entity in entities)
                 {
-                    int moves = 0;
-                    while (moves <= entityCount && enumerator.MoveNext())
-                    {
-                        moves++;
-                    }
-                    if (enumerator.Current != null)
-                        entity = enumerator.Current;
-                }
-
-                if (entity == null || entity.Physics == null || entity.MarkedForClose)
-                {
-                    entityCount++;
-                    continue;
-                }
-
-                foreach (var warning in navigationWarnings)
-                {
-                    if (warning.Type != "B" && warning.Type != "W" && warning.Type != "E") continue;
-
-                    Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
-                    float radius = (float)warning.Radius;
-                    float power = Math.Abs((float)warning.Power);
-                    bool isPull = warning.Type == "B";
-
                     Vector3D pos = entity.GetPosition();
                     Vector3D dir = center - pos;
                     double dist = dir.Length();
-
-                    if (dist >= radius || dist < 1.0) continue;
+                    if (dist >= radius || dist < 1) continue;
 
                     Vector3D pullDir = Vector3D.Normalize(dir);
                     float strength = power * (float)(1.0 - dist / radius);
@@ -193,12 +176,13 @@ namespace Lobby.scripts
                     // Apply pull (blackhole) or push (eject/whitehole entry)
                     entity.Physics.LinearVelocity += pullDir * strength * (isPull ? 0.1f : -0.1f);
 
-                    // Blackhole event horizon damage (30% radius)
+                    // Blackhole event horizon damage
                     if (isPull && dist < radius * 0.3f)
                     {
+                        // Damage scales from 5 (edge) to 50 (center) per tick
                         float damage = 10f + (float)((radius * 0.3f - dist) * 30f);
 
-                        // Damage grids by hitting first block
+                        // GRID: Damage first block 
                         IMyCubeGrid grid = entity as IMyCubeGrid;
                         if (grid != null)
                         {
@@ -209,9 +193,9 @@ namespace Lobby.scripts
                                 blocks[0].DoDamage(damage, MyDamageType.Deformation, true);
                             }
                         }
+                        // PLAYER: Full damage (they're in a cockpit or jetpack)
                         else
                         {
-                            // Damage character
                             IMyCharacter character = entity as IMyCharacter;
                             if (character != null)
                             {
@@ -220,8 +204,6 @@ namespace Lobby.scripts
                         }
                     }
                 }
-
-                entityCount++;
             }
         }
 
