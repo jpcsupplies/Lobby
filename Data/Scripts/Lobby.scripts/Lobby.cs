@@ -104,7 +104,11 @@ namespace Lobby.scripts
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
-    {
+    {     
+        //Change Version here ------------
+        private const string MyVerReply = "Gateway Lobby 3.574a (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
+        //Change Version end -------------
+
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
         bool seenPopup = false; //have we already displayed a popup in this zone?
@@ -156,9 +160,7 @@ namespace Lobby.scripts
 
         public readonly List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-        //Change Version here ------------
-        private const string MyVerReply = "Gateway Lobby 3.573a (+HOP/Log/TP/cleanup) By Captain X (aka PhoenixX)";  //mod version
-        //Change Version end -------------
+
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
@@ -309,7 +311,7 @@ namespace Lobby.scripts
                 //else { MyAPIGateway.Utilities.ShowMessage("Note", "Scanning for paths through Interstellar Space.."); }
             } //else we are dedicated server
 
-            
+
             initDone = true;
         }
 
@@ -402,7 +404,7 @@ namespace Lobby.scripts
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset complete: Defaults regenerated.");
             }
-            
+
             else if (message == "AccessDenied")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
@@ -453,6 +455,13 @@ namespace Lobby.scripts
 
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 Init();
+
+            // TESTING CLIENT ONLY — dedicated server skips everything here
+            if (AmIaDedicated())
+            {
+                base.UpdateAfterSimulation();
+                return;
+            }
 
             //once again, lets not run this bit on a server.. cause that would be dumb
             if (!AmIaDedicated())
@@ -554,10 +563,7 @@ namespace Lobby.scripts
                     spoolCounter = 0; // Reset counter when spooling stops
                 }
             }
-            else if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
-            {
-                LobbyPhysics.DoPhysicsTick();
-            }
+            //moved server side tick control to LobbyServer.cs
             base.UpdateAfterSimulation();
         }
 
@@ -815,8 +821,11 @@ namespace Lobby.scripts
                 {
                     haznumber++;
                     bool Radioactive = false;
+                    var MyRadius = warning.Radius; //Used so we can add a fixed safety 
                     string typeCode = warning.Type == "Radiation" ? "R" : "Z"; // Z code for general non defined nav hazard, R for radiation.
-                    if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") typeCode = "G"; //G code means some sort of gravity well/effect
+
+                    //G code means some sort of gravity well/effect, also we should give an extra 100 metres safety margin for those as they evil as hell, and score 11/10 on the nope scale
+                    if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") { typeCode = "G"; MyRadius += 100;  } 
 
                     //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
                     //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work
@@ -824,10 +833,13 @@ namespace Lobby.scripts
                     //Downside is we need an efficient way to make sure the server is tracking positions.
                     //Another issue is unpiloted grids should also have gravity/damage/teleport effects applied if they enter a G class
                     //Hazard zone, which would simply not work if that check only occured client side.
-                    if (!seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
+
+                    //If we have not seen popup, and we are in a Hazard zone, and the zone type isn't BlackHole show popup.
+                    //we dont want to see the popup on a blackhole as we have more important things to do, like try to escaping not click a button
+                    if (!seenPopup && warning.Type != "Blackhole" && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= MyRadius)
                     {
                         if (warning.Type == "Radiation") Radioactive = true;
-                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{MyRadius / 1000}KM", warning.Message, true);
                         MyAPIGateway.Utilities.ShowMissionScreen("Navigation Warning", $"[{typeCode}] ", warning.Type, warning.Message, null, "Close");
                         StopLastPlayedSound(); PlaySound(WoopSoundPair, 0.4f);
                         seenPopup = true; //no other popups recently shown except this one 
@@ -835,12 +847,14 @@ namespace Lobby.scripts
                         //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Navigation warning triggered: {warning.Message}");
                         //break; // Only show one at a time (Disable if need to show multiple)
                     }
-                    else if (seenPopup && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= warning.Radius)
+                    //If it is a blackhole or we already saw a popup just ping the chat with a warning.
+                    else if ((seenPopup || warning.Type == "Blackhole") && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= MyRadius)
                     {
                         if (warning.Type == "Radiation") Radioactive = true;
+                      
                         //I can probably disable this one, if they saw the popup already likely already created one, but
                         //in edge cases where a station popup is within a warning zone  it might not create the gps
-                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{warning.Radius / 1000}KM", warning.Message, true);
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{MyRadius / 1000}KM", warning.Message, true);
                         //popups recently seen somewhere so just use a less annoying chat warning this time.                        
                         MyAPIGateway.Utilities.ShowMessage($"Nav[{typeCode}] Alert", $"*{warning.Type}*: <{warning.Message}>");
                         StopLastPlayedSound();
@@ -1214,12 +1228,6 @@ namespace Lobby.scripts
             }
             //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am returning from GPS()");
         }
-
-        // Jumping, Bumping, override and General Grid movement logic
-
-
-
-
 
 
         private static Color GetColorFromString(string colour)
@@ -2488,6 +2496,7 @@ namespace Lobby.scripts
             return 50; // Default if no valid popup LCD found or invalid radius
         }
 
+        #region viewing editing saving and loading config file
         //Grabs all important mod settings and displays it on screen for enduser reference.
         private void ShowConfigSummary(out string reply)
         {
@@ -2665,7 +2674,6 @@ namespace Lobby.scripts
         }
 
 
-
         private string LoadConfigText()
         {
             try
@@ -2696,6 +2704,8 @@ namespace Lobby.scripts
             }
             catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("Lobby", $"Config save error: {e.Message}"); }
         }
+        #endregion viewing editing saving and loading config file
+
         private void HandleServerNavWarnings(byte[] data)
         {
             try
@@ -2715,14 +2725,11 @@ namespace Lobby.scripts
             bool inNavigationWarnings = false;
             bool inGlobalGPS = false;
 
-
-
-
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
 
-
+                #region disabled nav haz list creator
 
                 //Nav warning logic - pulled from server side now at LobbyServer.ParseNavigationWarningsServer();
                 //Original logic retained in case needed to rework server hazardlist builder
@@ -2862,6 +2869,7 @@ namespace Lobby.scripts
                         } 
                     }
                 } */
+                #endregion disabled nav haz list creator
 
                 //global GPS logic
                 if (trimmed.StartsWith("[GPS]"))
@@ -3074,6 +3082,7 @@ namespace Lobby.scripts
                     }
                 }
             }
+
             // === Navigation Warnings – now synced from server (or copied from LobbyServer) ===
             // Old client parsing removed – single source from server
             if (LobbyServer.ServerNavigationWarnings != null && LobbyServer.ServerNavigationWarnings.Count > 0)
@@ -3085,7 +3094,7 @@ namespace Lobby.scripts
             }
             else
             {
-               // MyAPIGateway.Utilities.ShowMessage("Lobby", "No nav warnings from server – using defaults");
+                // MyAPIGateway.Utilities.ShowMessage("Lobby", "No nav warnings from server – using defaults");
             }
 
             // Update globals with CubeSize

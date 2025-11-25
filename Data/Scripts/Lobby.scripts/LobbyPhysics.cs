@@ -111,8 +111,19 @@ namespace Lobby.scripts
                 double dist = dir.Length();
                 if (dist >= radius || dist < 1) continue;
 
+                float gradient = (float)Math.Pow(1.0 - dist / radius, 2); // Quadratic – weak edge, strong center
+                float pull = strength * gradient;
+                pull = Math.Min(pull, 100f); // Cap to prevent crashes
+
                 Vector3D pullDir = Vector3D.Normalize(dir);
-                float pull = strength * (float)(1.0 - dist / radius);
+
+                // Dead zone (5% radius) – lock in place
+                if (dist < radius * 0.05f)
+                {
+                    entity.Physics.LinearVelocity = Vector3D.Zero;
+                    affected++;
+                    continue;
+                }
 
                 // Pull (positive strength) or push (negative strength)
                 entity.Physics.LinearVelocity += pullDir * pull * 0.1f;
@@ -120,7 +131,7 @@ namespace Lobby.scripts
                 affected++;
             }
 
-            MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
+           // MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
         }
 
         // --------------------------------------------------------------------
@@ -175,9 +186,15 @@ namespace Lobby.scripts
         /// </summary>
         public static void DoPhysicsTick()
         {
-            if (!MyAPIGateway.Session.IsServer) return;
+
+            //lets make this a little cheeky - if there is no nav warnings on server, check client side too and use that 
+            //instead as an offline/self hosted work around hack
+
+            //So lets not worry if it is a server; lets see if anything has actually been defined first
+            //before giving up
+            //if (!MyAPIGateway.Session.IsServer) return;
             if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
-                return;
+                    return;
 
             foreach (var warning in LobbyServer.ServerNavigationWarnings)
             {

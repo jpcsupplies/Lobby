@@ -19,12 +19,34 @@ using VRage.ModAPI; // Added for IMyEntity
 namespace Lobby.scripts
 {
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
+    // [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyServer : MySessionComponentBase
     {
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345;
         public static List<NavigationWarning> ServerNavigationWarnings = new List<NavigationWarning>();
 
+        public override void UpdateAfterSimulation()
+        {
+            //TEST Duplication of updateaftersimulation for server side only tasks
+            //  if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
+            //  {
+            LobbyPhysics.DoPhysicsTick();
+            //MyAPIGateway.Utilities.ShowMessage("Lobby", "Tick!");
+            //  }
+            base.UpdateAfterSimulation();
+        }
+
+        public override void UpdateBeforeSimulation()
+        {
+            //stuff we may want to change before physics or render
+            if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
+            {
+                LobbyPhysics.DoPhysicsTick();
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "Tick!");
+            }
+            base.UpdateBeforeSimulation();
+        }
 
         public override void BeforeStart()
         {
@@ -40,7 +62,7 @@ namespace Lobby.scripts
             }
             BroadcastConfig();
             ParseNavigationWarningsServer(LoadConfigText());
-         
+
             LobbyTeleport.InitNetworking();
             LobbyPhysics.InitNetworking();
         }
@@ -260,12 +282,12 @@ namespace Lobby.scripts
                 MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("NavWarningsSync:" + b64));
                 return;
             }
-           /* else if (message.StartsWith("RequestNavWarnings:"))
-            {
-                ulong steamId = ulong.Parse(message.Split(':')[1]);
-                byte[] MyData = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
-                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, MyData, steamId);
-            } */
+            /* else if (message.StartsWith("RequestNavWarnings:"))
+             {
+                 ulong steamId = ulong.Parse(message.Split(':')[1]);
+                 byte[] MyData = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, MyData, steamId);
+             } */
             else if (message.StartsWith("ltest reset"))
             {
                 ulong steamId = ulong.Parse(message.Split(':')[1]);
@@ -415,7 +437,7 @@ namespace Lobby.scripts
                     }
                 }
             }
-           
+
         }
 
 
