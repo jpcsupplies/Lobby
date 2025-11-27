@@ -415,7 +415,7 @@ namespace Lobby.scripts
                     // Only show error if we haven't already got a good list
                     if (!NavOk)
                     {
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary nav sync failed");
+                        //MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary nav sync failed");
                         LobbyTeleport.Log("Binary nav sync failed");                        
                     }
                 }

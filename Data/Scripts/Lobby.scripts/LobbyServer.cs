@@ -306,6 +306,7 @@ namespace Lobby.scripts
                         grid.Close();
                     }
                 }
+                ParseNavigationWarningsServer(LoadConfigText()); // Rebuild nav list ready for players
                 BroadcastConfig();
             }
             else if (message.StartsWith("IsAdmin:"))
@@ -522,6 +523,8 @@ namespace Lobby.scripts
                     configText += line + "\n";
                 }
             }
+            byte[] data = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+            MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, data);
             MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText));
         }
     }
