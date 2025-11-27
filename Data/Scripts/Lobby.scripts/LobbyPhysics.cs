@@ -105,6 +105,7 @@ namespace Lobby.scripts
         }
 
         //this may still work but was doing funny things.
+        //kept to migrate damage processing over later.
         public static void OldDoPhysicsTick()
         {
             if (!MyAPIGateway.Session.IsServer) return;
@@ -170,15 +171,6 @@ namespace Lobby.scripts
             }
         }
 
-        // --------------------------------------------------------------------
-        // Public placeholders (called from commands/hazards later)
-        // --------------------------------------------------------------------
-        public static void AddVelocity(long playerIdentityId, Vector3D direction, float amount)
-        {
-            // PLACEHOLDER – shows message for testing
-            MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"AddVelocity placeholder: {amount}m/s in dir {direction}");
-        }
-
         /// <summary>
         /// Apply realistic post-jump stagger: strong side roll (left/right) + light secondary wobble
         /// Used by /override and debug /phys stagger
@@ -218,7 +210,9 @@ namespace Lobby.scripts
             //MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Ship stagger: {rollDeg:F1}°/s roll + {secondaryDeg:F1}°/s wobble");
         }
 
-        //general way to apply rotation for potential future effects
+        /// <summary>
+        /// General way to apply rotation for potential future effects
+        /// </summary>
         public static void ApplyRotation(long playerIdentityId, Vector3D worldAxis, float degreesPerSecond)
         {
             var player = GetPlayerByIdentityId(playerIdentityId);
@@ -238,12 +232,10 @@ namespace Lobby.scripts
 
             MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Grid reeling {degreesPerSecond:F1}°/s");
         }
-
-
-
-        // ---------------------------
-        // Server Safe Gravity Well
-        // ---------------------------
+       
+        /// <summary>
+        /// Server Side/Safe Gravity well physics and behaviour.
+        /// </summary>
         public static void CreateGravityWell(Vector3D center, float radius, float strength, bool deadZone=true)
         {
             var entities = new HashSet<VRage.ModAPI.IMyEntity>();
@@ -283,9 +275,10 @@ namespace Lobby.scripts
             // MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
         }
 
-        // --------------------------------------------------------------------
-        // Gravity Well – simple one-shot pull (offline testable, no timer)
-        // --------------------------------------------------------------------
+        /// <summary>
+        /// Gravity Well – simple one-shot pull (offline testable, no timer)
+        /// More agressive version of CreateGravityWell mostly for an admin test Gravity Bomb effect.
+        /// </summary>
         public static void ClientCreateGravityWell(Vector3D center, float radius, float strength)
         {
             var entities = new HashSet<VRage.ModAPI.IMyEntity>();
@@ -329,8 +322,10 @@ namespace Lobby.scripts
                 $"Gravity pull applied – {affected} entities affected");
         }
 
-
-
+        /// <summary>
+        /// Looks up a players IdentityID to resolve WHO to apply physics effects to.
+        /// Duplication: Also exists in LobbyTeleport.cs schedule for merge.
+        /// </summary>
         private static IMyPlayer GetPlayerByIdentityId(long identityId)
         {
             var list = new List<IMyPlayer>();
@@ -342,6 +337,9 @@ namespace Lobby.scripts
             return null;
         }
 
+        /// <summary>
+        /// Looks up a grid ID of ship being controled by specified player.
+        /// </summary>
         private static IMyCubeGrid GetControlledGrid(IMyPlayer player)
         {
             var entity = player.Controller?.ControlledEntity?.Entity;
@@ -350,15 +348,14 @@ namespace Lobby.scripts
             return entity as IMyCubeGrid;
         }
 
-        // --------------------------------------------------------------------
-        // Networking placeholders (safe, empty handlers)
-        // --------------------------------------------------------------------
+        /// <summary>
+        /// Initialises server/client networking.
+        /// </summary>
         public static void InitNetworking()
         {
             if (registered || MyAPIGateway.Multiplayer == null) return;
 
-            // Empty handlers for now – real logic later
-            MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(PHYSICS_VELOCITY_ADD,
+              MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(PHYSICS_VELOCITY_ADD,
                 (ushort id, byte[] data, ulong sender, bool ignore) => { });
 
             MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(PHYSICS_ROTATION_APPLY,
@@ -367,6 +364,9 @@ namespace Lobby.scripts
             registered = true;
         }
 
+        /// <summary>
+        /// Shuts down server/client networking for exiting server.
+        /// </summary>
         public static void UnloadNetworking()
         {
             if (!registered || MyAPIGateway.Multiplayer == null) return;

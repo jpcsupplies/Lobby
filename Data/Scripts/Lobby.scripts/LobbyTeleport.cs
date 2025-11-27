@@ -9,10 +9,12 @@ using System.Linq;
 using VRage.ModAPI; // for IMyEntity
 
 
-namespace Lobby.scripts     // ← this is the correct namespace from your project
+namespace Lobby.scripts    
 {
     // All teleport-related code will live here.
     // This class is 100% shared – compiled on both client and server.
+    // Todo: Summaries need to be added for some methods.
+
     public static class LobbyTeleport
     {
         // --------------------------------------------------------------------

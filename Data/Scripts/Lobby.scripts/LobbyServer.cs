@@ -26,18 +26,10 @@ namespace Lobby.scripts
         private const ushort MESSAGE_ID = 12345;
         public static List<NavigationWarning> ServerNavigationWarnings = new List<NavigationWarning>();
 
-        /*  Not used at the moment.
-        public override void UpdateAfterSimulation()
-        {
-            //TEST Duplication of updateaftersimulation for server side only tasks
-            //  if (MyAPIGateway.Session.IsServer) // SERVER SIDE – physics tick
-            //  {
-            LobbyPhysics.DoPhysicsTick();
-            //MyAPIGateway.Utilities.ShowMessage("Lobby", "Tick!");
-            //  }
-            base.UpdateAfterSimulation();
-        }*/
-
+        
+        /// <summary>
+        ///     Server Suide Things that need to override/control Physics
+        /// </summary>
         public override void UpdateBeforeSimulation()
         {
             //stuff we may want to change before physics or render
@@ -49,6 +41,11 @@ namespace Lobby.scripts
             base.UpdateBeforeSimulation();
         }
 
+        /// <summary>
+        ///     Things to do before the dedicated server world starts. 
+        ///     Server Equivalent of Client side init() but only runs
+        ///     server side.
+        /// </summary>
         public override void BeforeStart()
         {
             if (!MyAPIGateway.Multiplayer.IsServer)
@@ -58,8 +55,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
             {
-                SaveConfigText(LobbyScript.DefaultConfig);
-                //[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                SaveConfigText(LobbyScript.DefaultConfig);                
             }
             BroadcastConfig();
             ParseNavigationWarningsServer(LoadConfigText());
@@ -68,7 +64,10 @@ namespace Lobby.scripts
             LobbyPhysics.InitNetworking();
         }
 
-        //Built the list of Navigation hazards server side so we know where to apply physics effects in the game world.
+        /// <summary>
+        ///     Build list of Navigation hazards server side so we know where to apply physics effects in the game world.
+        ///     May require more data format/integrity checks but works mostly as is.
+        /// </summary>
         private void ParseNavigationWarningsServer(string configText)
         {
             ServerNavigationWarnings.Clear();
@@ -232,7 +231,9 @@ namespace Lobby.scripts
             }
         }
 
-
+        /// <summary>
+        ///     Cleanup when server/offline exits/shutsdown.
+        /// </summary>
         protected override void UnloadData()
         {
             if (MyAPIGateway.Multiplayer.IsServer)
@@ -243,6 +244,9 @@ namespace Lobby.scripts
             base.UnloadData();
         }
 
+        /// <summary>
+        ///    Manages communication between player clients and the server.
+        /// </summary>
         private void HandleMessage(byte[] data)
         {
             string message = Encoding.UTF8.GetString(data);
@@ -264,6 +268,19 @@ namespace Lobby.scripts
                     }
                 }
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes("ConfigData:" + configText), steamId);
+            }
+            /* else if (message == "RequestNavWarnings")
+            {
+                byte[] Mydata = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+                string b64 = Convert.ToBase64String(Mydata);
+                MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("NavWarningsSync:" + b64));
+                return;
+            }*/
+            else if (message.StartsWith("RequestNavWarnings:"))
+            {
+                ulong steamId = ulong.Parse(message.Split(':')[1]);
+                byte[] MyData = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
+                MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, MyData, steamId);
             }
             else if (message.StartsWith("SaveConfig:"))
             {
@@ -297,19 +314,9 @@ namespace Lobby.scripts
                 bool isAdmin = MyAPIGateway.Session.GetUserPromoteLevel(steamId) >= MyPromoteLevel.SpaceMaster;
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes($"AdminStatus:{steamId}:{isAdmin}"), steamId);
             }
-            else if (message == "RequestNavWarnings")
-            {
-                byte[] Mydata = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
-                string b64 = Convert.ToBase64String(Mydata);
-                MyAPIGateway.Multiplayer.SendMessageToOthers(MESSAGE_ID, Encoding.UTF8.GetBytes("NavWarningsSync:" + b64));
-                return;
-            }
-            /* else if (message.StartsWith("RequestNavWarnings:"))
-             {
-                 ulong steamId = ulong.Parse(message.Split(':')[1]);
-                 byte[] MyData = MyAPIGateway.Utilities.SerializeToBinary(ServerNavigationWarnings);
-                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, MyData, steamId);
-             } */
+
+
+
             else if (message.StartsWith("ltest reset"))
             {
                 ulong steamId = ulong.Parse(message.Split(':')[1]);
@@ -462,8 +469,9 @@ namespace Lobby.scripts
 
         }
 
-
-
+        /// <summary>
+        ///     Reads the server side server admin configuration options for Gateway/Lobby
+        /// </summary>
         private string LoadConfigText(bool reset = false)
         {
             try
@@ -481,6 +489,9 @@ namespace Lobby.scripts
             catch { return ""; }
         }
 
+        /// <summary>
+        ///     Saves changes server side server admin configuration options for Gateway/Lobby
+        /// </summary>
         private void SaveConfigText(string text)
         {
             try
@@ -493,6 +504,12 @@ namespace Lobby.scripts
             catch { }
         }
 
+        /// <summary>
+        ///     Sends the server configuration options for Gateway/Lobby to Player clients.
+        ///     Omits sending the password however so it is less likely to be sniffed as a 
+        ///     security measure for a shared galaxy of servers to prevent cheaters
+        ///     trying to travel into the galaxy with creative mode/hacked ships.
+        /// </summary>
         private void BroadcastConfig()
         {
             string configText = LoadConfigText();

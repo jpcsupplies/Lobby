@@ -53,6 +53,7 @@ using VRage.Utils; // For MyStringHash
 
 namespace Lobby.scripts
 {
+    #region global protocontract list structures
     [ProtoContract]
     public class Destination
     {
@@ -90,6 +91,7 @@ namespace Lobby.scripts
         [ProtoMember(5)] public string Message;
         [ProtoMember(6)] public string Type; // New: "Radiation" or "General"
     }*/
+
     [ProtoContract]
     public class GlobalGPS
     {
@@ -100,15 +102,17 @@ namespace Lobby.scripts
         [ProtoMember(5)] public string Name; // Quoted name, e.g., "Mars"
         [ProtoMember(6)] public string Description; // Remaining text, e.g., "Planet Mars"
     }
-
+    #endregion global protocontract list structures
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
     {
-        //Change Version here ------------
-        private const string MyVerReply = "Gateway Lobby 3.574a (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
-        //Change Version end -------------
+        #region default verion and config
+        private const string MyVerReply = "Gateway Lobby 3.574b (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
+        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
+        #endregion default verion and config
 
+        #region global/local instance variables
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
         bool seenPopup = false; //have we already displayed a popup in this zone?
@@ -157,17 +161,18 @@ namespace Lobby.scripts
         public string GND = "none"; // +Y Galactic North
         public string GDD = "none";  // -Z Galactic Down
         public string GUD = "none";  // +Z Galactic Up
-
+        private List<Destination> serverDestinations = new List<Destination>();
         public readonly List<NavigationWarning> navigationWarnings = new List<NavigationWarning>(); // New list for nav warnings
         private List<GlobalGPS> globalGPS = new List<GlobalGPS>(); // New list for universal GPS
-
         private Dictionary<long, bool> adminCache = new Dictionary<long, bool>(); // Cache for admin status
+        #endregion global/local instance variables
+
+        #region server coms system settings
         private const string CONFIG_FILE = "LobbyDestinations.cfg";
         private const ushort MESSAGE_ID = 12345; // Same ID as server
-        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
-        private List<Destination> serverDestinations = new List<Destination>();
+        #endregion server coms system settings
 
-        //visual effects system
+        #region visual effects system variables
         bool RadioactiveV = false;
         /*
         private List<Streak> streaks = new List<Streak>();
@@ -187,8 +192,9 @@ namespace Lobby.scripts
             public float StartTime;
             public float Lifetime; // e.g., 0.5 seconds
         }
+        #endregion visual effects system
 
-        //sound effects system
+        #region sound effects system setings
         private Timer soundTimer; // For repeating sound bursts
         MyEntity3DSoundEmitter emitter;
         //private MyEntity3DSoundEmitter lastEmitter; // Track last for interrupt
@@ -201,32 +207,29 @@ namespace Lobby.scripts
         readonly MySoundPair Boom = new MySoundPair("ArcWepSmallMissileExplShip");
         readonly MySoundPair Theme = new MySoundPair("SpacePhoenixX");
 
-
-
         readonly MySoundPair SoundTest = new MySoundPair("ArcWepSmallMissileExpl"); //for /ltest sound0 tests
         /*
-                    * A few interesting Sound IDs
-                    * RealHudVocSolarInbound  solar wind voice warning (uses speech engine, no good)
-                    * HudClick
-                    * HudMouseClick
-                    * ArcNewItemImpact
-                    * RealNewItemImpact
-                    * ArcHudBleep
-                    * ArcHudQuestlogDetail
-                    * ArcHudVocRadiationImmunityLow
-                    * ArcHudVocRadiationCritical
-                    * ArcWepSmallMissileExplShip
-                    * ArcWepSmallMissileExpl
-
-                   */
+        * A few interesting Sound IDs
+        * RealHudVocSolarInbound  solar wind voice warning (uses speech engine, no good)
+        * HudClick
+        * HudMouseClick
+        * ArcNewItemImpact
+        * RealNewItemImpact
+        * ArcHudBleep
+        * ArcHudQuestlogDetail
+        * ArcHudVocRadiationImmunityLow
+        * ArcHudVocRadiationCritical
+        * ArcWepSmallMissileExplShip
+        * ArcWepSmallMissileExpl
+        */
+        #endregion sound effects system settings
 
         /// <summary>
-        ///     Quick check to see if the script is trying to run server side.
+        ///     Quick dirty check to see if the script is trying to run server side.
         /// </summary>
         bool AmIaDedicated()
         {
-
-            // Am I a Dedicated Server?.
+            // Am I a Dedicated Server or running offline?.
             if (MyAPIGateway.Utilities != null && MyAPIGateway.Multiplayer != null
                 && MyAPIGateway.Session != null && MyAPIGateway.Utilities.IsDedicated && MyAPIGateway.Multiplayer.IsServer)
             {
@@ -237,7 +240,8 @@ namespace Lobby.scripts
         }
 
         /// <summary>
-        ///     What to do next after player joins the server.  Client side only.
+        ///     What to do when player joins the server.  Client side only.
+        ///     Registers controls for communicating with server, Processe Lobby config etc.
         /// </summary>
         public void Init()
         {
@@ -250,7 +254,7 @@ namespace Lobby.scripts
             {
                 // Reset popup state on init
                 // probably redundant if we just connected to the map
-                // but a debug can potentially will carry over an invalid state so better to reset it again
+                // but a debug can potentially carry over an invalid state so better to reset it again
                 seenPopup = false;
                 lastStationId = 0;
 
@@ -261,32 +265,34 @@ namespace Lobby.scripts
                  MyAPIGateway.Utilities.GetObjectiveLine().Objectives.Add("Scanning..");
                  MyAPIGateway.Utilities.GetObjectiveLine().Show(); */
 
-
-                // Register client network handler
+                // Register client network handler channel
                 MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleMessage);
-                MyAPIGateway.Multiplayer.RegisterMessageHandler(MESSAGE_ID, HandleServerNavWarnings);
 
-                // Request config from server
+                // Request config from server, and let it know who to reply to
                 MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestConfig:" + MyAPIGateway.Session.Player.SteamUserId));
-                // Request navigation warnings from server
-                //MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestNavWarnings:" + MyAPIGateway.Session.Player.SteamUserId));
-                MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestNavWarnings"));
-                ParseConfigText(LoadConfigText()); // Fallback to local if no server response
 
-                // Check and create default config
+                // Request navigation warnings from server and let it know who to reply to
+                MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, Encoding.UTF8.GetBytes("RequestNavWarnings:" + MyAPIGateway.Session.Player.SteamUserId));
+
+                //Populate our config settings, GPS points, Interstellar Exits etc from the config we just pulled from server.
+                //If we are running offline/self hosted, also fallback etc our settings, navigation hazard list etc to copy the 
+                //one LobbyServer.cs likely just created too otherwise message handler already populated it if online.
+                ParseConfigText(LoadConfigText());
+
+                // Check and create default config if this is first run or it is missing.
                 if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyScript)))
                 {
-                    SaveConfigText(DefaultConfig);
-                    //"[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]");
+                    SaveConfigText(DefaultConfig); //Use Default config as defined in Lobby.cs variables.
                 }
 
-                //Lets let the user know whats up. 
+                //Lets let the user know we are here. 
                 MyAPIGateway.Utilities.ShowMessage("VER", MyVerReply);
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "This sector supports gateway stations! Use /Lhelp for details.");
 
-                //Triggers the 1 off scan for Interstellar Space boundry definitions to populate the destination list.
+                //This actually shows before the timer.. so for readability moved it before said timer.
+                MyAPIGateway.Utilities.ShowMessage("", "Scan For Interstellar Space Paths..");
 
-                //Do an initial 5 second pre-warmup waiting on data from server
+                //Do an initial 5 second pre-warmup waiting on data from server to finish sending.
                 initTimer = new Timer(5000); // 5s delay
                 initTimer.Elapsed += (s, e) =>
                 {
@@ -303,15 +309,19 @@ namespace Lobby.scripts
                 initTimer.AutoReset = false;
                 initTimer.Start();
 
-                MyAPIGateway.Utilities.ShowMessage("", "Scan For Interstellar Space Paths..");
+                //Triggers the 1 off scan for Interstellar Space boundry definitions to initialise the destination list.
                 if (SetExits()) { } //silently do a prescan
-                //    MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Exit(s) Detected!");
-                //   quiet = false;
-                // }
+                                    //    MyAPIGateway.Utilities.ShowMessage("Note", "Interstellar Space Exit(s) Detected!");
+                                    //   quiet = false;
+
                 //else { MyAPIGateway.Utilities.ShowMessage("Note", "Scanning for paths through Interstellar Space.."); }
-            } //else we are dedicated server
-
-
+            }
+            else    //else we are dedicated server
+            {
+                //Placeholder in case we need any init tasks to only run on a dedicated server. Mostly
+                //superceded by contents of LobbyServer.cs
+            }
+            //Mark Init Method as completed; which will now allow other tick based tasks know that it is safe to do their thing now safely.
             initDone = true;
         }
 
@@ -333,7 +343,10 @@ namespace Lobby.scripts
             base.UnloadData();
         }
 
-
+        /// <summary>
+        ///     Used for testing if a popup or exit LCD are owned by admin. If the option to only allow
+        ///     [popup] or [station] LCD to work if an admin owns/creates them is enabled, it checks ownership.
+        /// </summary>
         private bool LCDOwnedByAdmin(IMyTextPanel textPanel, bool debug = false)
         {
             if (textPanel == null)
@@ -366,8 +379,6 @@ namespace Lobby.scripts
                 return isAdmin;
             }
 
-
-
             // For non-player-owned grids (dedicated server, remote admins)
             long ownerId = grid.BigOwners[0];
             if (adminCache.ContainsKey(ownerId))
@@ -377,10 +388,35 @@ namespace Lobby.scripts
             return false;
         }
 
-
-        //Client Handler
+        /// <summary>
+        ///     Handles incoming data and communications from the server instance/dedicated server.  
+        /// </summary>
         private void HandleMessage(byte[] data)
         {
+
+            // Direct binary sync — no string prefix
+            // Used to quickly populate the navigation hazard list.
+            // Not ideal, since it relies on fail before processing other communications.
+            // But best I can do in a hurry.
+            if (data.Length > 10)
+            {
+                try
+                {
+                    var received = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(data);
+                    navigationWarnings.Clear();
+                    navigationWarnings.AddRange(received);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Synced {navigationWarnings.Count} nav warnings");
+                    return;
+                }
+                catch
+                {
+                    //debug fail warning, comment out unless testing
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary Nav sync failed.");
+                }
+            }
+
+            // Ok any data reaching this point is probably string format.  Check it for valid communications.
+            // This may be a weak point when we get around to checking Galaxy networks of shared servers for passcodes.            
             string message = Encoding.UTF8.GetString(data);
             if (message.StartsWith("ConfigData:"))
             {
@@ -400,11 +436,10 @@ namespace Lobby.scripts
                 Target = "none";
                 UpdateLobby(false);
             }
-            if (message.StartsWith("ConfigReset:"))
+            else if (message.StartsWith("ConfigReset:"))
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Config reset complete: Defaults regenerated.");
             }
-
             else if (message == "AccessDenied")
             {
                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Access denied: Requires Space Master or higher.");
@@ -424,35 +459,15 @@ namespace Lobby.scripts
                 bool isAdmin = bool.Parse(parts[2]);
                 adminCache[ownerId] = isAdmin;
             }
-            else if (message.StartsWith("NavWarningsSync:"))
-            {
-                try
-                {
-                    string b64 = message.Substring(15);
-                    byte[] binaryData = Convert.FromBase64String(b64);
-                    var receivedList = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(binaryData);
 
-                    navigationWarnings.Clear();
-                    navigationWarnings.AddRange(receivedList);
-
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Synced {navigationWarnings.Count} nav warnings from server");
-                }
-                catch
-                {
-                    // Fallback to local parse if sync fails
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Nav sync failed – using local");
-                }
-                return;   //does this need to be here? the others dont use it..
-            }
 
         }
 
         /// <summary>
-        ///     Main client side processing loop. Runs the whole show.
+        ///     Main client side only processing loop thread. Runs the whole show on a players computer.
         /// </summary>
         public override void UpdateAfterSimulation()
         {
-
             // Need to think on ambient sounds
             // Some ominous sounding hum thing for near black holes, 
             // some sucking sounding hum for white holes, 
@@ -460,19 +475,20 @@ namespace Lobby.scripts
             // some general sound for simply being shoved out by Ejector Zones.
             //They would run only client side and possibly loop
 
-
-
+            // Only init once per connection.
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 Init();
 
-            // TESTING CLIENT ONLY — dedicated server skips everything here
+            // TESTING CLIENT ONLY — If we are dedicated server, It skips everything past here.
             if (AmIaDedicated())
             {
                 base.UpdateAfterSimulation();
                 return;
             }
 
-            //once again, lets not run this bit on a server.. cause that would be dumb
+            // Once again, lets be sure not to run this bit on a server.. cause that would be dumb.
+            // Mostly redundant due to earlier AmIaDedicated() check and return above but in some edge cases 
+            // offline it might somehow blunder in here still.
             if (!AmIaDedicated())
             {
                 //Visual effects
@@ -572,7 +588,8 @@ namespace Lobby.scripts
                     spoolCounter = 0; // Reset counter when spooling stops
                 }
             }
-            //moved server side tick control to LobbyServer.cs
+            // Moved server side tick control to LobbyServer.cs and LobbyPhysics.cs
+            // Dedicated server should normally never make it here.
             base.UpdateAfterSimulation();
         }
 
@@ -589,14 +606,17 @@ namespace Lobby.scripts
             //if (!string.IsNullOrEmpty(reply)) { MyAPIGateway.Utilities.ShowMessage("Lobby", reply); }
         }
 
-
         /// <summary>
-        ///     Rexxars: IMyMultiplayer.JoinServer called this way to prevent crashes.
+        ///     Rexxars suggested: IMyMultiplayer.JoinServer called this way to prevent crashes.
         /// </summary>
         /// <param name="ip"></param>
         public static void JoinServer(string ip)
         {
             //Little change to joinserver to allow instant to work at a later date hopefully, courtesy of rexxars brain.
+            //Unlikely we ever implement instant, because players might not appreciate suddenly getting thrown halfway 
+            //Across the galaxy because they accidentally drifted into interstellar space; or I was feeling particularly
+            //Evil and implemented server destinations for worm holes or mass effect arrays or something.
+            //Player should always have the final say if they want to travel to another part of a connected galaxy.
             MyAPIGateway.Utilities.InvokeOnGameThread(() => MyAPIGateway.Multiplayer.JoinServer(ip));
         }
 
@@ -650,13 +670,13 @@ namespace Lobby.scripts
         }
 
         /// <summary>
-        ///     Checks players surroundings for proximity to departure points and special LCDs
-        ///     Returns true if it found any, false if not or invalid.
-        ///     Can also be passed a true or false to force display of debug/diag info or not
+        ///     Checks players surroundings for proximity to departure points, special LCDs and Navigation Hazards in space.
+        ///     Returns true if it found any, false if not or invalid. Displays warning indicators and the like too.
+        ///     Bit of a swiss army knife.
+        ///     Can also be passed a true or false to force display of additional debug/diag info or not
         /// </summary>
         public bool UpdateLobby(bool debug = false)
         {
-
             //check our position - are we in a hot spot?
             // remove ? so only current player not all players trigger. if (MyAPIGateway.Session.Player?.Controller?.ControlledEntity != null) {
             // this might be useful to later reuse for a check that sends a warning to a faction member that an enemy has entered their territory
@@ -670,7 +690,7 @@ namespace Lobby.scripts
                 //   return false;
                 // }
 
-                //hard coded target list cause I suck at server side datafiles.. kept for reference only
+                //hard coded target list from before server side datafiles.. kept for reference only
                 /* if (X >= -100 && X<=100 && Y >= -100 && Y<=100 && Z >= 15 && Z <=25) { Zone = "Lawless void"; Target = "221.121.159.238:27270"; return true; }
                  if (X >= -100 && X <= -10 && Y >= 10 && Y <= 100 && Z >= -20 && Z <= 11) { Zone = "Black Talon Sector"; Target = "59.167.215.81:27016"; return true; }
                  if (X >= -100 && X <= -10 && Y >= -100 && Y <= -10 && Z >= -20 && Z <= 11) { Zone = "Spokane Survivalist Sector"; Target = "162.248.94.205:27065"; return true; }
@@ -679,7 +699,7 @@ namespace Lobby.scripts
                  else { Zone = "Scanning..."; Target = "none"; return false;  }  */
 
                 //look for an lcd customName [destination] then grab the text and extract a server address, network and caption
-                //display the caption in hud, and set the server address to connect to. May also set a network name somehow 
+                //display the caption in chat, and set the server address to connect to. May also set a network name somehow 
                 //eg. the string/text immediately after the server address which would be cross referenced with configured
                 //known networks in the config file (and the associated passkey when that feature is added) 
                 //long descriptions are pulled using getText from the screen of the LCD or any text added after network name
@@ -688,7 +708,8 @@ namespace Lobby.scripts
                 //where both exist - default to the shorter description (most likely the one in customName) for the chat depart pager
 
                 //var players = new List<IMyPlayer>();
-                // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo allocations when we transfer ships too.
+                // MyAPIGateway.Players.GetPlayers(players, p => p != null); //dont need list of players unless we are doing seat/cryo 
+                // allocations when we transfer ships too.
                 // Player position in 3d space assigned to 'player'
                 Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
                 var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
@@ -696,10 +717,8 @@ namespace Lobby.scripts
                 var sphere = new BoundingSphereD(position, 9); //destination lcds
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
 
-
-
-                //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm
-
+                //Scheduled for cleanup
+                //updatelist.Clear(); // Ensure fresh list used in forced update code, disabled atm as we populate differently now.
 
                 // Collect [destination] LCDs found
                 foreach (var block in LCDlist)
@@ -713,7 +732,7 @@ namespace Lobby.scripts
                 }
 
                 //if (debug && updatelist.Count > 0) { } //additional spot for debug if needed
-                //Debug info
+                //Debug info handler
                 if (debug)
                 {
                     var player = MyAPIGateway.Session.Player;
@@ -726,7 +745,6 @@ namespace Lobby.scripts
                 }
 
                 //Normal Check [station] LCDs for popup Logic
-
                 var updatelist2 = new HashSet<IMyTextPanel>(); //list of popup [station] lcds
                 var sphere2 = new BoundingSphereD(position, StationPrescan()); //popup notification lcds scanrange
                 var LCDlist2 = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere2);
@@ -741,7 +759,10 @@ namespace Lobby.scripts
                         && textPanel.IsWorking
                         && stationTags.Any(tag => textPanel.CustomName?.IndexOf(tag, StringComparison.InvariantCultureIgnoreCase) >= 0))
                     {
+                        //doesn't seem to do anything useful at the moment.
                         //noZone = false;  //need to double check what i use this for.
+
+                        // Add any station popup notification/motd messages we found nearby.
                         updatelist2.Add(textPanel);
                     }
                 }
@@ -813,8 +834,6 @@ namespace Lobby.scripts
                     // }
                 }
 
-
-
                 //[Navigation Warnings] logic
                 //If it is first time pop up warning; set seen flag
                 //If it is second time only show console message
@@ -873,7 +892,7 @@ namespace Lobby.scripts
                             PlayRadiationTicks();
                         }
                         else
-                        {                        
+                        {
                             //Use Alert Sound
                             PlaySound(WoopSoundPair, 0.2f);
                         }
@@ -927,8 +946,6 @@ namespace Lobby.scripts
 
                     }
                 }
-
-
 
                 // Process [destination] LCDs if allowed
                 if (AllowDestinationLCD)
@@ -1096,6 +1113,7 @@ namespace Lobby.scripts
             //fell through a hole
             return false;
         }
+
         /// <summary>
         /// Change the value/level of one of a players attributes by increase/decrease a given amount.
         /// </summary>
@@ -1187,7 +1205,7 @@ namespace Lobby.scripts
 
         }
 
-        /// <summary.
+        /// <summary>
         ///     Create or destroy a GPS point
         /// </summary>
         public static void GPS(double x, double y, double z, string name, string description, bool create, string colour = "Red")
@@ -1238,7 +1256,9 @@ namespace Lobby.scripts
             //MyAPIGateway.Utilities.ShowMessage("Lobby", "I am returning from GPS()");
         }
 
-
+        /// <summary>
+        ///     Supported colour code interpreter used for Global GPS points colour.
+        /// </summary>
         private static Color GetColorFromString(string colour)
         {
             switch (colour.ToLower())
@@ -1614,6 +1634,11 @@ namespace Lobby.scripts
 
         #endregion Audio
 
+        /// <summary>
+        ///     Special effects, radiation lines, boundrary indicator walls, 
+        ///     block holes visualisation, wormholes effects, repulsor objects, 
+        ///     jump drive visuals etc
+        /// </summary>
         #region visual effects
 
         private void DrawStaticStreaks2(float intensity = 1.0f)
@@ -1769,11 +1794,10 @@ namespace Lobby.scripts
 
         #endregion visual effects
 
-
-        #region command list
         /// <summary>
         ///     Checks command line text for commands to process
         /// </summary>
+        #region command list
         private bool ProcessMessage(string messageText) //, out string reply)
         {
             string reply = "";
@@ -2238,13 +2262,88 @@ namespace Lobby.scripts
 
                     return true;
                 }
+                else if (split.Length >= 5 && split[1].Equals("bomb", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    double x = 0, y = 0, z = 0, radius, strength;
+                    bool usedPosShortcut = false;
+
+                    // NEW: Handle [pos] and [pos]+<dist>
+                    if (split[2].Equals("[pos]", StringComparison.OrdinalIgnoreCase) ||
+                        split[2].StartsWith("[pos]+", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var player = MyAPIGateway.Session.Player;
+                        if (player?.Character == null)
+                        {
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "No character – can't use [pos]");
+                            return true;
+                        }
+
+                        Vector3D playerPos = player.GetPosition();
+                        Vector3D forward = player.Controller.ControlledEntity.Entity.WorldMatrix.Forward;
+
+                        double offset = 50.0; // default
+
+                        if (split[2].StartsWith("[pos]+") && split[2].Length > 6)
+                        {
+                            string distStr = split[2].Substring(6); // after "[pos]+"
+                            double.TryParse(distStr, out offset);
+                        }
+
+                        Vector3D target = playerPos + forward * offset;
+                        x = target.X;
+                        y = target.Y;
+                        z = target.Z;
+                        usedPosShortcut = true;
+                    }
+                    else if (split.Length >= 7) // normal x y z
+                    {
+                        if (!double.TryParse(split[2], out x) ||
+                            !double.TryParse(split[3], out y) ||
+                            !double.TryParse(split[4], out z))
+                        {
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid x y z");
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid coordinates – use x y z or [pos]");
+                        return true;
+                    }
+
+                    // Parse radius and strength (index shifts if [pos] used)
+                    int radiusIndex = usedPosShortcut ? 3 : 5;
+                    int strengthIndex = usedPosShortcut ? 4 : 6;
+
+                    if (split.Length <= strengthIndex ||
+                        !double.TryParse(split[radiusIndex], out radius) ||
+                        !double.TryParse(split[strengthIndex], out strength))
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid radius or strength");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Try failed: Usage: /phys bomb <x> <y> <z> <radius> <strength>");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "        or: /phys bomb [pos] <radius> <strength>");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "        or: /phys bomb [pos]+<dist> <radius> <strength>");
+                        return true;
+                    }
+
+                    Vector3D center = new Vector3D(x, y, z);
+                    LobbyPhysics.ClientCreateGravityWell(center, (float)radius, (float)strength);
+
+                    string posType = usedPosShortcut ? "at player pos" : "at coords";
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Gravity Bomb {posType} – radius {radius:F0}, strength {strength:F1}");
+
+                    return true;
+                }
                 else
                 {
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys rot <Forward|Left|Up|...> <amount>");
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys stagger");
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well <x> <y> <z> <radius> <strength>");
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well [pos] <radius> <strength>");
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well [pos]+<offset> <radius> <strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Rotate Usage: /phys rot <Forward|Left|Up|...> <amount>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Stagger Usage: /phys stagger");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity well Usage: /phys well <x> <y> <z> <radius> <+/- strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity well Usage: /phys well [pos] <radius> <+/- strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity well Usage: /phys well [pos]+<offset> <radius> <+/- strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity Bomb Usage: /phys bomb <x> <y> <z> <radius> <+/- strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity Bomb Usage: /phys bomb [pos] <radius> <+/- strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Test Gravity Bomb Usage: /phys bomb [pos]+<offset> <radius> <+/- strength>");
                     return true;
                 }
             }
@@ -2540,7 +2639,9 @@ namespace Lobby.scripts
         }
         #endregion command list
 
-        // prescans for station popups to get optional range
+        /// <summary>
+        ///     prescans for station greeting popups to get optional range to trigger
+        /// </summary>
         private int StationPrescan()
         {
             var player = MyAPIGateway.Session.Player;
@@ -2579,6 +2680,10 @@ namespace Lobby.scripts
             return 50; // Default if no valid popup LCD found or invalid radius
         }
 
+
+        /// <summary>
+        ///     Configuration file handling.
+        /// </summary>
         #region viewing editing saving and loading config file
         //Grabs all important mod settings and displays it on screen for enduser reference.
         private void ShowConfigSummary(out string reply)
@@ -2756,7 +2861,6 @@ namespace Lobby.scripts
             return true;
         }
 
-
         private string LoadConfigText()
         {
             try
@@ -2789,17 +2893,11 @@ namespace Lobby.scripts
         }
         #endregion viewing editing saving and loading config file
 
-        private void HandleServerNavWarnings(byte[] data)
-        {
-            try
-            {
-                var received = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(data);
-                navigationWarnings.Clear();
-                navigationWarnings.AddRange(received);
-                MyAPIGateway.Utilities.ShowMessage("Lobby", $"Received {navigationWarnings.Count} nav warnings from server");
-            }
-            catch { }
-        }
+        /// <summary>
+        ///     Builds the list of configuration options, Navigation Hazards, Global GPS points, 
+        ///     and sets various bool flags related to the Gateway server configuration and behaviour.
+        ///     The configuration was grabbed from the game server (or locally if offline).
+        /// </summary>
         private void ParseConfigText(string text)
         {
             serverDestinations.Clear();
@@ -3184,8 +3282,10 @@ namespace Lobby.scripts
             SetExits();
         }
 
-
-
+        /// <summary>
+        ///     Default human readable name of the Interstellar Space facings that can be linked 
+        ///     to other physical servers to represent regions of your shared galaxy.
+        /// </summary>
         private string GetDefaultDescription(string networkName)
         {
             switch (networkName.ToUpper())
