@@ -26,6 +26,7 @@ namespace Lobby.scripts
         private const ushort MESSAGE_ID = 12345;
         public static List<NavigationWarning> ServerNavigationWarnings = new List<NavigationWarning>();
 
+        /*  Not used at the moment.
         public override void UpdateAfterSimulation()
         {
             //TEST Duplication of updateaftersimulation for server side only tasks
@@ -35,7 +36,7 @@ namespace Lobby.scripts
             //MyAPIGateway.Utilities.ShowMessage("Lobby", "Tick!");
             //  }
             base.UpdateAfterSimulation();
-        }
+        }*/
 
         public override void UpdateBeforeSimulation()
         {
@@ -100,6 +101,8 @@ namespace Lobby.scripts
                 string message = string.Join(" ", parts.Skip(2));
 
                 string type = "General";
+                //X,Y,Z Radius Long Description
+
                 double pullpower = 0;
                 string coords2 = "";
                 double Ex = 0, Ey = 0, Ez = 0, Eradius = 0;
@@ -112,10 +115,18 @@ namespace Lobby.scripts
                     {
                         type = "Radiation";
                         message = string.Join(" ", parts.Skip(3));
+                        //X,Y,Z Radius Radiation Long Description
+                        //X,Y,Z Radius Radiation Anomaly Long Description
+                        //Normal is random radiation/visuals scaled from centre.
+                        //Anomaly has reduced radiation in middle
                     }
                     else if (possibleType == "b" || possibleType == "blackhole")
                     {
                         type = "Blackhole";
+                        //X,Y,Z Radius Blackhole pull_power Long Description
+                        //X,Y,Z Radius Blackhole Anomaly pull_power Long Description
+                        //Anomaly traps you in Event Horizon (30% from centre minimal damage) exiting event horizon one way teleports to in other side
+                        //Non Anomaly centre crushes you to death, event horizon inescapable (30% from centre scaling damage) random at-radius teleports
                         if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
                         {
                             double.TryParse(parts[4], out pullpower);
@@ -130,6 +141,9 @@ namespace Lobby.scripts
                     else if (possibleType == "w" || possibleType == "whitehole")
                     {
                         type = "Whitehole";
+                        //X,Y,Z Radius Whitehole pull_power X,Y,Z(Target) Long Description
+                        //X,Y,Z Radius Whitehole Anomaly pull_power Radius(random teleport) Long Description
+                        //Minor Damage until event horizon, centre teleports you away and adds stagger and velocity
                         if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
                         {
                             double.TryParse(parts[4], out pullpower);
@@ -152,7 +166,10 @@ namespace Lobby.scripts
                     }
                     else if (possibleType == "e" || possibleType == "eject")
                     {
-                        type = "Ejector";
+                        type = "Ejector";  //repulsor
+                        //x,y,z Radius Eject repulse_power long description
+                        //x,y,z radius Eject Anomaly repulse_power long description
+                        //no damage just push away
                         if (parts.Length > 3 && parts[3].ToLowerInvariant() == "anomaly")
                         {
                             double.TryParse(parts[4], out pullpower);
@@ -166,6 +183,11 @@ namespace Lobby.scripts
                         pullpower = -pullpower;
                     }
                 }
+                //so we havwe parts[0]; split by space,
+                //if it is a black hole then parts[0] is xyz, parts[1] is radius, parts[2] is Blackhole/B, parts[3] is pullpower or anomaly, parts[4] is pullpower or part of description
+                //if it is a white hole then parts[0] is xyz, parts[1] is radius, parts[2] is whitehole/w, parts[3] is pullpower, parts[4] is exit x,y,z, part[5]+ is long description
+                //if it is a white hole then parts[0] is xyz, parts[1] is radius, parts[2] is whitehole/w, parts[3] is anomaly, parts[4] is pullpower, part[5] is teleradius, part[6]+ is long description
+                //if it is a eject repulsor then parts[0] is xyz, parts[1] is radius, parts[2] is Ejector/E, parts[3] is repulse pullpower or anomaly, parts[4] is repulse pullpower or part of description
 
                 var coordParts = coords.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (coordParts.Length == 3)

@@ -18,6 +18,159 @@ namespace Lobby.scripts
         private static bool registered = false;
 
         // --------------------------------------------------------------------
+        // Gravity Well – simple pull zone (blackhole prototype)
+        // --------------------------------------------------------------------
+        private static readonly HashSet<long> ActiveGravityWells = new HashSet<long>();
+        private static long nextWellId = 1;
+
+        /// <summary>
+        /// Server-side tick: applies gravity wells, damage, teleports
+        /// Called once per frame from Lobby.cs when running on dedicated server
+        /// </summary>
+        public static void DoPhysicsTick()
+        {
+
+
+            if (!MyAPIGateway.Session.IsServer) return;
+            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
+                return;
+
+            foreach (var warning in LobbyServer.ServerNavigationWarnings)
+            {
+                // Only gravity zones
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector")
+                    continue;
+
+                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                float radius = (float)warning.Radius;
+                float strength = (float)warning.Power; // positive = pull, negative = push
+                bool hasDeadZone = warning.Type == "Blackhole";
+
+                CreateGravityWell(center, radius, strength, hasDeadZone);
+
+                // WHITEHOLE detect when something is near center
+                // WHITEHOLE TELEPORT — trigger on center contact
+                // WHITEHOLE TELEPORT – only player or piloted grid
+                if (warning.Type == "Whitehole")
+                {
+                    float triggerRadius = (float)warning.Radius * 0.06f;
+
+
+                    var entities = new HashSet<VRage.ModAPI.IMyEntity>();
+                    MyAPIGateway.Entities.GetEntities(entities, e => e?.Physics != null && !e.MarkedForClose);
+
+                    foreach (var entity in entities)
+                    {
+                        double dist = Vector3D.Distance(entity.GetPosition(), center);
+                        if (dist < triggerRadius)
+                        {
+                            string name = entity.DisplayName ?? "Unknown";
+                            long id = entity.EntityId;
+                            Vector3D exitPos = Vector3D.Zero;
+
+                            // Fixed exit
+                            if (warning.ExitX != 0 || warning.ExitY != 0 || warning.ExitZ != 0)
+                            {
+                                exitPos = new Vector3D(warning.ExitX, warning.ExitY, warning.ExitZ);
+                            }
+
+                            else if (warning.ExitRadius > 0)
+                            {
+                                Random rand = new Random();
+                                Vector3D randDir = new Vector3D(
+                                    rand.NextDouble() * 2 - 1,
+                                    rand.NextDouble() * 2 - 1,
+                                    rand.NextDouble() * 2 - 1);
+                                exitPos = center + Vector3D.Normalize(randDir) * warning.ExitRadius * (float)rand.NextDouble();
+                            }
+                            else
+                            {
+                                exitPos = center + (entity.GetPosition() - center) * 3;
+                            }
+
+                            // Use your existing teleport method with EntityId
+                            LobbyTeleport.RequestEntityTeleport(id, exitPos);
+
+                            //MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"WHITEHOLE TELEPORT: Entity {name} {id} X{warning.ExitX}, Y{warning.ExitY}, Z{warning.ExitZ}");
+
+
+                          
+
+                        }
+
+                    }
+                   
+                }
+            }
+        }
+
+        //this may still work but was doing funny things.
+        public static void OldDoPhysicsTick()
+        {
+            if (!MyAPIGateway.Session.IsServer) return;
+
+            // Use the server-side list from LobbyServer
+            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
+                return;
+
+            var entities = new HashSet<IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(entities, e => e?.Physics != null && !e.MarkedForClose);
+
+            foreach (var warning in LobbyServer.ServerNavigationWarnings)
+            {
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector") continue;
+
+                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                float radius = (float)warning.Radius;
+                float power = Math.Abs((float)warning.Power);
+                bool isPull = warning.Type == "Blackhole";
+
+
+                foreach (var entity in entities)
+                {
+                    Vector3D pos = entity.GetPosition();
+                    Vector3D dir = center - pos;
+                    double dist = dir.Length();
+                    if (dist >= radius || dist < 1) continue;
+
+                    Vector3D pullDir = Vector3D.Normalize(dir);
+                    float strength = power * (float)(1.0 - dist / radius);
+
+                    // Apply pull (blackhole) or push (eject/whitehole entry)
+                    entity.Physics.LinearVelocity += pullDir * strength * (isPull ? 0.1f : -0.1f);
+
+                    // Blackhole event horizon damage
+                    if (isPull && dist < radius * 0.3f)
+                    {
+                        // Damage scales from 5 (edge) to 50 (center) per tick
+                        float damage = 10f + (float)((radius * 0.3f - dist) * 30f);
+
+                        // GRID: Damage first block 
+                        IMyCubeGrid grid = entity as IMyCubeGrid;
+                        if (grid != null)
+                        {
+                            var blocks = new List<IMySlimBlock>();
+                            grid.GetBlocks(blocks);
+                            if (blocks.Count > 0)
+                            {
+                                blocks[0].DoDamage(damage, MyDamageType.Deformation, true);
+                            }
+                        }
+                        // PLAYER: Full damage (they're in a cockpit or jetpack)
+                        else
+                        {
+                            IMyCharacter character = entity as IMyCharacter;
+                            if (character != null)
+                            {
+                                character.DoDamage(damage, MyDamageType.Deformation, true);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --------------------------------------------------------------------
         // Public placeholders (called from commands/hazards later)
         // --------------------------------------------------------------------
         public static void AddVelocity(long playerIdentityId, Vector3D direction, float amount)
@@ -86,16 +239,12 @@ namespace Lobby.scripts
             MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Grid reeling {degreesPerSecond:F1}°/s");
         }
 
-        // --------------------------------------------------------------------
-        // Gravity Well – simple pull zone (blackhole prototype)
-        // --------------------------------------------------------------------
-        private static readonly HashSet<long> ActiveGravityWells = new HashSet<long>();
-        private static long nextWellId = 1;
+
 
         // ---------------------------
         // Server Safe Gravity Well
         // ---------------------------
-        public static void CreateGravityWell(Vector3D center, float radius, float strength)
+        public static void CreateGravityWell(Vector3D center, float radius, float strength, bool deadZone=true)
         {
             var entities = new HashSet<VRage.ModAPI.IMyEntity>();
             MyAPIGateway.Entities.GetEntities(entities);
@@ -118,7 +267,7 @@ namespace Lobby.scripts
                 Vector3D pullDir = Vector3D.Normalize(dir);
 
                 // Dead zone (5% radius) – lock in place
-                if (dist < radius * 0.05f)
+                if (deadZone && dist < radius * 0.05f)
                 {
                     entity.Physics.LinearVelocity = Vector3D.Zero;
                     affected++;
@@ -131,7 +280,7 @@ namespace Lobby.scripts
                 affected++;
             }
 
-           // MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
+            // MyAPIGateway.Utilities.ShowMessage("LobbyPhysics", $"Gravity well applied – {affected} entities affected");
         }
 
         // --------------------------------------------------------------------
@@ -180,100 +329,7 @@ namespace Lobby.scripts
                 $"Gravity pull applied – {affected} entities affected");
         }
 
-        /// <summary>
-        /// Server-side tick: applies gravity wells, damage, teleports
-        /// Called once per frame from Lobby.cs when running on dedicated server
-        /// </summary>
-        public static void DoPhysicsTick()
-        {
 
-            //lets make this a little cheeky - if there is no nav warnings on server, check client side too and use that 
-            //instead as an offline/self hosted work around hack
-
-            //So lets not worry if it is a server; lets see if anything has actually been defined first
-            //before giving up
-            //if (!MyAPIGateway.Session.IsServer) return;
-            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
-                    return;
-
-            foreach (var warning in LobbyServer.ServerNavigationWarnings)
-            {
-                // Only gravity zones
-                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector")
-                    continue;
-
-                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
-                float radius = (float)warning.Radius;
-                float strength = (float)warning.Power; // positive = pull, negative = push
-
-                CreateGravityWell(center, radius, strength);
-            }
-        }
-
-        public static void OldDoPhysicsTick()
-        {
-            if (!MyAPIGateway.Session.IsServer) return;
-
-            // Use the server-side list from LobbyServer
-            if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
-                return;
-
-            var entities = new HashSet<IMyEntity>();
-            MyAPIGateway.Entities.GetEntities(entities, e => e?.Physics != null && !e.MarkedForClose);
-
-            foreach (var warning in LobbyServer.ServerNavigationWarnings)
-            {
-                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector") continue;
-
-                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
-                float radius = (float)warning.Radius;
-                float power = Math.Abs((float)warning.Power);
-                bool isPull = warning.Type == "Blackhole";
-
-
-                foreach (var entity in entities)
-                {
-                    Vector3D pos = entity.GetPosition();
-                    Vector3D dir = center - pos;
-                    double dist = dir.Length();
-                    if (dist >= radius || dist < 1) continue;
-
-                    Vector3D pullDir = Vector3D.Normalize(dir);
-                    float strength = power * (float)(1.0 - dist / radius);
-
-                    // Apply pull (blackhole) or push (eject/whitehole entry)
-                    entity.Physics.LinearVelocity += pullDir * strength * (isPull ? 0.1f : -0.1f);
-
-                    // Blackhole event horizon damage
-                    if (isPull && dist < radius * 0.3f)
-                    {
-                        // Damage scales from 5 (edge) to 50 (center) per tick
-                        float damage = 10f + (float)((radius * 0.3f - dist) * 30f);
-
-                        // GRID: Damage first block 
-                        IMyCubeGrid grid = entity as IMyCubeGrid;
-                        if (grid != null)
-                        {
-                            var blocks = new List<IMySlimBlock>();
-                            grid.GetBlocks(blocks);
-                            if (blocks.Count > 0)
-                            {
-                                blocks[0].DoDamage(damage, MyDamageType.Deformation, true);
-                            }
-                        }
-                        // PLAYER: Full damage (they're in a cockpit or jetpack)
-                        else
-                        {
-                            IMyCharacter character = entity as IMyCharacter;
-                            if (character != null)
-                            {
-                                character.DoDamage(damage, MyDamageType.Deformation, true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         private static IMyPlayer GetPlayerByIdentityId(long identityId)
         {

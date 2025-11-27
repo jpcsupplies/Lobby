@@ -104,7 +104,7 @@ namespace Lobby.scripts
 
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
-    {     
+    {
         //Change Version here ------------
         private const string MyVerReply = "Gateway Lobby 3.574a (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
         //Change Version end -------------
@@ -452,6 +452,15 @@ namespace Lobby.scripts
         /// </summary>
         public override void UpdateAfterSimulation()
         {
+
+            // Need to think on ambient sounds
+            // Some ominous sounding hum thing for near black holes, 
+            // some sucking sounding hum for white holes, 
+            // a rough sounding effect for when players are teleported, 
+            // some general sound for simply being shoved out by Ejector Zones.
+            //They would run only client side and possibly loop
+
+
 
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
                 Init();
@@ -825,7 +834,7 @@ namespace Lobby.scripts
                     string typeCode = warning.Type == "Radiation" ? "R" : "Z"; // Z code for general non defined nav hazard, R for radiation.
 
                     //G code means some sort of gravity well/effect, also we should give an extra 100 metres safety margin for those as they evil as hell, and score 11/10 on the nope scale
-                    if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") { typeCode = "G"; MyRadius += 100;  } 
+                    if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") { typeCode = "G"; MyRadius += 100; }
 
                     //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
                     //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work
@@ -851,7 +860,7 @@ namespace Lobby.scripts
                     else if ((seenPopup || warning.Type == "Blackhole") && Vector3D.Distance(position, new Vector3D(warning.X, warning.Y, warning.Z)) <= MyRadius)
                     {
                         if (warning.Type == "Radiation") Radioactive = true;
-                      
+
                         //I can probably disable this one, if they saw the popup already likely already created one, but
                         //in edge cases where a station popup is within a warning zone  it might not create the gps
                         GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{MyRadius / 1000}KM", warning.Message, true);
@@ -864,7 +873,7 @@ namespace Lobby.scripts
                             PlayRadiationTicks();
                         }
                         else
-                        {
+                        {                        
                             //Use Alert Sound
                             PlaySound(WoopSoundPair, 0.2f);
                         }
@@ -2081,6 +2090,7 @@ namespace Lobby.scripts
             #endregion depart
 
             #region physics
+            //note should add a way to use the old style grav well pull maybe as a grav bomb feature
             if (split[0].Equals("/phys", StringComparison.InvariantCultureIgnoreCase))
             {
                 if (MyAPIGateway.Session.GetUserPromoteLevel(MyAPIGateway.Session.Player.SteamUserId) < MyPromoteLevel.SpaceMaster || MyAPIGateway.Session.Player.Character == null)
@@ -2139,22 +2149,93 @@ namespace Lobby.scripts
                     LobbyPhysics.ShipStagger(identityId);
                     return true;
                 }
-                else if (split.Length == 7 && split[1].Equals("well", StringComparison.InvariantCultureIgnoreCase))
+                /* else if (split.Length == 7 && split[1].Equals("well", StringComparison.InvariantCultureIgnoreCase))                
+                  {
+                double x=0, y=0, z=0, radius, strength;
+                if (double.TryParse(split[2], out x) &&
+                    double.TryParse(split[3], out y) &&
+                    double.TryParse(split[4], out z) &&
+                    double.TryParse(split[5], out radius) &&
+                    double.TryParse(split[6], out strength))
                 {
-                    double x, y, z, radius, strength;
-                    if (double.TryParse(split[2], out x) &&
-                        double.TryParse(split[3], out y) &&
-                        double.TryParse(split[4], out z) &&
-                        double.TryParse(split[5], out radius) &&
-                        double.TryParse(split[6], out strength))
+                    Vector3D center = new Vector3D(x, y, z);
+                    LobbyPhysics.CreateGravityWell(center, (float)radius, (float)strength);
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Gravity well at {x:F0},{y:F0},{z:F0}");
+                    return true;
+                }
+                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid radius or strength");
+                 MyAPIGateway.Utilities.ShowMessage("Lobby", "Try failed: Usage: /phys well <x> <y> <z> <radius> <strength>");
+                } */
+                else if (split.Length >= 5 && split[1].Equals("well", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    double x = 0, y = 0, z = 0, radius, strength;
+                    bool usedPosShortcut = false;
+
+                    // NEW: Handle [pos] and [pos]+<dist>
+                    if (split[2].Equals("[pos]", StringComparison.OrdinalIgnoreCase) ||
+                        split[2].StartsWith("[pos]+", StringComparison.OrdinalIgnoreCase))
                     {
-                        Vector3D center = new Vector3D(x, y, z);
-                        LobbyPhysics.CreateGravityWell(center, (float)radius, (float)strength);
-                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Gravity well at {x:F0},{y:F0},{z:F0}");
+                        var player = MyAPIGateway.Session.Player;
+                        if (player?.Character == null)
+                        {
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "No character – can't use [pos]");
+                            return true;
+                        }
+
+                        Vector3D playerPos = player.GetPosition();
+                        Vector3D forward = player.Controller.ControlledEntity.Entity.WorldMatrix.Forward;
+
+                        double offset = 50.0; // default
+
+                        if (split[2].StartsWith("[pos]+") && split[2].Length > 6)
+                        {
+                            string distStr = split[2].Substring(6); // after "[pos]+"
+                            double.TryParse(distStr, out offset);
+                        }
+
+                        Vector3D target = playerPos + forward * offset;
+                        x = target.X;
+                        y = target.Y;
+                        z = target.Z;
+                        usedPosShortcut = true;
+                    }
+                    else if (split.Length >= 7) // normal x y z
+                    {
+                        if (!double.TryParse(split[2], out x) ||
+                            !double.TryParse(split[3], out y) ||
+                            !double.TryParse(split[4], out z))
+                        {
+                            MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid x y z");
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid coordinates – use x y z or [pos]");
                         return true;
                     }
 
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Try failed: Usage: /phys well <x> <y> <z> <radius> <strength>");
+                    // Parse radius and strength (index shifts if [pos] used)
+                    int radiusIndex = usedPosShortcut ? 3 : 5;
+                    int strengthIndex = usedPosShortcut ? 4 : 6;
+
+                    if (split.Length <= strengthIndex ||
+                        !double.TryParse(split[radiusIndex], out radius) ||
+                        !double.TryParse(split[strengthIndex], out strength))
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Invalid radius or strength");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Try failed: Usage: /phys well <x> <y> <z> <radius> <strength>");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "        or: /phys well [pos] <radius> <strength>");
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "        or: /phys well [pos]+<dist> <radius> <strength>");
+                        return true;
+                    }
+
+                    Vector3D center = new Vector3D(x, y, z);
+                    LobbyPhysics.CreateGravityWell(center, (float)radius, (float)strength);
+
+                    string posType = usedPosShortcut ? "at player pos" : "at coords";
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Gravity well {posType} – radius {radius:F0}, strength {strength:F1}");
+
                     return true;
                 }
                 else
@@ -2162,6 +2243,8 @@ namespace Lobby.scripts
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys rot <Forward|Left|Up|...> <amount>");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys stagger");
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well <x> <y> <z> <radius> <strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well [pos] <radius> <strength>");
+                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Usage: /phys well [pos]+<offset> <radius> <strength>");
                     return true;
                 }
             }

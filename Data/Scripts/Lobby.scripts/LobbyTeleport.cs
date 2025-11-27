@@ -6,6 +6,7 @@ using Sandbox.ModAPI;
 using VRage.Game;
 using ProtoBuf;   // ← for packet serialization
 using System.Linq;
+using VRage.ModAPI; // for IMyEntity
 
 
 namespace Lobby.scripts     // ← this is the correct namespace from your project
@@ -195,6 +196,43 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
             MyAPIGateway.Utilities.ShowMessage("LobbyTeleport", $"Jump requested → {targetWorldPos.X:F0}, {targetWorldPos.Y:F0}, {targetWorldPos.Z:F0}");
         }
 
+        /// <summary>
+        /// Request teleport by raw EntityId — works for players, piloted grids, unpiloted grids, shells, drones, ores, tools, meteors
+        /// Used by whiteholes, blackhole anomalies, admin tools
+        /// </summary>
+        public static void RequestEntityTeleport(long entityId, Vector3D targetWorldPos)
+        {
+            var entity = MyAPIGateway.Entities.GetEntityById(entityId);
+            if (entity == null || entity.Physics == null || entity.MarkedForClose) return;
+
+            // CASE 1: Player — use existing method
+            IMyCharacter character = entity as IMyCharacter;
+            if (character !=null)
+            {
+                var player = MyAPIGateway.Players.GetPlayerControllingEntity(character);
+                if (player != null)
+                {
+                    RequestAbsoluteTeleport(player.IdentityId, targetWorldPos);
+                    return;
+                }
+            }
+
+            // CASE 2: Unpiloted grid or floating object — direct move (server or offline)
+            if (!MyAPIGateway.Multiplayer.MultiplayerActive || MyAPIGateway.Session.IsServer)
+            {
+                IMyCubeGrid unpilotedGrid = entity as IMyCubeGrid;
+                if (unpilotedGrid != null)
+                {
+                    InstantHopGrid(unpilotedGrid, targetWorldPos);
+                }
+                else
+                {
+                    // Ores, tools, shells, meteors — PositionComp
+                    entity.PositionComp.SetPosition(targetWorldPos);
+                }
+            }
+        }
+
         private static void ExecuteAbsoluteTeleport(IMyPlayer player, Vector3D targetPos)
         {
             if (player?.Controller?.ControlledEntity?.Entity == null) return;
@@ -224,11 +262,13 @@ namespace Lobby.scripts     // ← this is the correct namespace from your proje
 
             var packet = MyAPIGateway.Utilities.SerializeFromBinary<AbsoluteTeleportRequestPacket>(data);
 
-            if (MyAPIGateway.Session.GetUserPromoteLevel(senderSteamId) < MyPromoteLevel.SpaceMaster)
-            {
-                Log("Absolute teleport denied – not SpaceMaster");
-                return;
-            }
+            //dont need this - anything that calls it already checked for space master
+            //and whiteholes need to teleport everything not just admins
+            //if (MyAPIGateway.Session.GetUserPromoteLevel(senderSteamId) < MyPromoteLevel.SpaceMaster)
+            //{
+             //   Log("Absolute teleport denied – not SpaceMaster");
+              //  return;
+            //}
 
             var player = GetPlayerByIdentityId(packet.IdentityId);
             if (player?.Controller?.ControlledEntity?.Entity == null)
