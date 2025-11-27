@@ -107,10 +107,10 @@ namespace Lobby.scripts
     [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
     public class LobbyScript : MySessionComponentBase
     {
-        #region default verion and config
-        private const string MyVerReply = "Gateway Lobby 3.574b (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
+        #region default version and config
+        private const string MyVerReply = "Gateway Lobby 3.575 (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
-        #endregion default verion and config
+        #endregion default version and config
 
         #region global/local instance variables
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
@@ -119,6 +119,7 @@ namespace Lobby.scripts
         public long lastStationId = 0; // Tracks the last station LCD that triggered a popup
         bool noZone = true; //no zone in sight?
         //private bool handlerRegistered = false;
+        private bool NavOk = false; // true = we have received a good nav list from server
         private Timer initTimer; //timer for pausing init long enough for grids to load in
         public bool quiet = true; // shall we nag the player about intersteller space?
         public bool jumping = false; public int chargetime = 20; public DateTime startTime = DateTime.UtcNow; public string lockedtarget = "";
@@ -405,13 +406,18 @@ namespace Lobby.scripts
                     var received = MyAPIGateway.Utilities.SerializeFromBinary<List<NavigationWarning>>(data);
                     navigationWarnings.Clear();
                     navigationWarnings.AddRange(received);
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", $"Synced {navigationWarnings.Count} nav warnings");
+                    NavOk = true;
+                    LobbyTeleport.Log($"Synced {navigationWarnings.Count} nav warnings");
                     return;
                 }
                 catch
                 {
-                    //debug fail warning, comment out unless testing
-                    MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary Nav sync failed.");
+                    // Only show error if we haven't already got a good list
+                    if (!NavOk)
+                    {
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary nav sync failed");
+                        LobbyTeleport.Log("Binary nav sync failed");                        
+                    }
                 }
             }
 

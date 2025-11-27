@@ -537,7 +537,10 @@ namespace Lobby.scripts
             return grid?.EntityId ?? 0;
         }
 
-        private static void Log(string message)
+        /// <summary>
+        /// Write specified string with a time stamp to local context storage log file.
+        /// </summary>
+        public static void Log(string message)
         {
             if (logWriter != null)
             {
