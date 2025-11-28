@@ -416,7 +416,7 @@ namespace Lobby.scripts
                     if (!NavOk)
                     {
                         //MyAPIGateway.Utilities.ShowMessage("Lobby", "Binary nav sync failed");
-                        LobbyTeleport.Log("Binary nav sync failed");                        
+                        LobbyTeleport.Log("Binary nav sync failed");
                     }
                 }
             }
@@ -847,10 +847,9 @@ namespace Lobby.scripts
                 //This will also suppress popups if you just saw a station or claim popup, but still show a warning in chat.
                 //Potentially may be worth letting multiple trigger in the case of nested warnings eg 100km caution, 50km warning, final 10km goodbye message
 
-                //May be worth spawning a GPS point in red text too? Or would that be better as some other feature? Such as creating GPS points
-                //for important POIs like planets?
                 bool ClearSeenState = true;   //Default that we didn't just see a warning, so safe to clear seenPopup
                 int haznumber = 0;
+                string DebugNav = "";
                 foreach (var warning in navigationWarnings)
                 {
                     haznumber++;
@@ -860,7 +859,8 @@ namespace Lobby.scripts
 
                     //G code means some sort of gravity well/effect, also we should give an extra 100 metres safety margin for those as they evil as hell, and score 11/10 on the nope scale
                     if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") { typeCode = "G"; MyRadius += 100; }
-
+                    if (debug)
+                    { DebugNav += $"Nav Data - R:{warning.Radius} T:{warning.Type} E:{warning.ExitRadius} M:{warning.Message}\r\n"; }
                     //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
                     //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work
                     //better and will immediately apply the effect, before waiting for the user to get the next hazard warning round.
@@ -951,7 +951,9 @@ namespace Lobby.scripts
                         EffectPlayer("Radiation", damage);
 
                     }
-                }
+                } 
+                if (debug) MyAPIGateway.Utilities.ShowMissionScreen("Navigation List", "Debug", "", DebugNav, null, "Close");
+
 
                 // Process [destination] LCDs if allowed
                 if (AllowDestinationLCD)
@@ -2445,6 +2447,7 @@ namespace Lobby.scripts
                     //Init(); // Force re-initialization (lets not)
                     UpdateLobby(true); // Debug output
                     MyAPIGateway.Utilities.ShowMessage("Lobby", "Show Debug messages");
+                    return true;
                 }
                 else if (split[1].Equals("reset", StringComparison.InvariantCultureIgnoreCase))
                 {
