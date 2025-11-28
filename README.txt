@@ -19,7 +19,7 @@ Contents in this document:
 	'Station Pop up Messages (Fun!)'
 	'Interstellar Space Boundry'
 		'How to use this feature'
-	'Navigation Warnings'
+	'Navigation HAZARDS OR Warnings'
 	'Global Server Wide GPS Points'
 	
 'Other Configuration options'
@@ -42,6 +42,15 @@ Contents in this document:
 ==================
 Why Use this ?
 ==================
+Author Note:
+In addition to the below 6 reasons.. because this mod adds Navigation Hazards like Blackholes, 
+Wormholes(whiteholes), Radiation Zones and Repulsor zones.  Can also allow you to have GPS
+points that are immediately available to all users on your server.  No more leaving LCDs, motd
+or vague notes the players never read anyway, just ping, and they know every point of interest
+you need them to know about.  You can also have per-station popup greeting messages, sort of
+like a MOTD for every persons space station.
+
+Other reasons:
 1: You could create an offline "game lobby" map containing a station with LCD exits to all your 
 favourite dedicated servers, as a more fun way than using the server browser if you only
 use a curated set of servers.  It could also be an online world for larger server hosts where
@@ -129,7 +138,7 @@ Normal players can only do a single random jump, and it will probably make thing
 Admins can also force the interstellar engine to spool up on any ship or station grid, not 
 just station blocks stuck in voxels, and can do so without an [override] lcd.
 Note: Likely the [override] lcd will need to be owned by an admin as a security check.
-Admins should be the ones adding the required LCD until a better way to do this is found.
+Admins should be the ones adding the required LCD.
 ==========================================================================================
 
 ************
@@ -141,20 +150,20 @@ Note: There are some additional keyboard commands available for admins. Refer to
 Admins - if you find yourself with an invalid out out of date configuration, 
 enter "/ltest reset"   to revert your server side config file to default settings without
 needing to remotely log into your server to delete it by hand.
-Be sure to use /lconfig beforehand if you have not noted your current network name or 
-existing Interstellar exit server addresses or navigation hazards if you need to add them 
-again.
+Be sure to use /lconfig (or /ledit and copy/paste the old settings from LCD) beforehand 
+if you have not noted your current network name or existing Interstellar exit server 
+addresses or navigation hazards if you need to add them again.
 ==========================================================================================
 
 Admins have several test commands for debugging various mod featues.  
 They can also teleport themselves or the currently controlled grid using the /hop
 command.   It has two operating modes "look" and "Absolute"
-Usage 'Look' Mode:
+Hop 'Look' Mode:
 1) Face the direction you wish to move
 2) Type "/hop  <DISTANCE>"  
 Example, to hop 10 kms type this: /hop 10000
 
-Usage 'Absolute' Mode:
+Hop 'Absolute' Mode:
 1) Work out the X Y Z coordinates you need (You can get these from a saved GPS point)
 2) Type "/hop <X coord> <Y Coord> <Z Coord>"
 Example, to hop to the xyz coordinates x10000,y50000,z100000 type this: 
@@ -167,9 +176,21 @@ effect. For example to tilt the current grid sideways 45 degrees:
 To check the ship stumble/stagger effect:
 /phys stagger
 
-(Not implemented) 
-Or to simulate 0.25 Gravity well from the location 1000,1000,1000, type:
- /phys well 25 1000 1000 1000
+To test a gravity pulse you can use well or bomb:
+Usage: 	/phys well <x> <y> <z> <radius> <+/- strength>");
+ 	/phys well [pos] <radius> <+/- strength>");
+ 	/phys well [pos]+<offset> <radius> <+/- strength>");
+
+	/phys bomb <x> <y> <z> <radius> <+/- strength>");
+ 	/phys bomb [pos] <radius> <+/- strength>");
+	/phys bomb [pos]+<offset> <radius> <+/- strength>");
+
+Examples:
+Or to test a 0.25 Gravity pulse from the location 1000,1000,1000 with a 5000 metre 
+radius type:  /phys well 1000 1000 1000 5000 25
+
+Or to test a really aggressive Gravity wave from the location 1000,1000,1000 with a 
+5000 metre radius type: /phys bomb 1000 1000 1000 5000 100
 
 Debugging commands (/ltest /lconfig etc):
 You can do a sound check for all the audio effects.
@@ -344,61 +365,157 @@ Other options may be added later, such as passcodes or options related to ship t
 too but the above are the most important options.
 
 
-*******************
-Navigation Warnings
-*******************
+******************************
+Navigation HAZARDS OR Warnings
+******************************
 Navigation warnings are admin created popup warning messages tied to a particular position
 in space, and a defined radius around it.  If a Player enters one of these hazard zones
 it displays a warning, generates a GPS point, and plays an alert tone until they leave the
-area.
+area.  Some may have special rules changing game mechanics or physics in them.
 
-To use this features, open your configuration editor with /Ledit and look for the 
-[Navigation Warnings]  heading.
+There are several TYPES of Hazards you can use when defining a Navigation Warning. Many
+have different behaviours, a primary and an anomaly. Anomaly behaviours are losely 
+inspired by anomalies from the STALKER game series, generally aimed at being explored.
 
-Below this heading you can enter 4 values and a warning message. 
-x,y,z radius warning message
+Current Types:
+If you don't specify a type; default is "General" type.  It gives a GPS point and warns
+with your configured message while within this zone.  It has no Anomaly behaviour.
+Example Parameters:   x,y,z radius detailed description
 
-Radius is a figure (in metres) so 1000 is equal to 1km
+"Radiation" Random Radiation will be applied to the player while anywhere in this zone. 
+"Anomaly" behaviour is reduced radiation in the centre to allow ruins, wrecks, derelicts 
+or other encounters to be placed there by the admin with the intention of being explored.
+Example Parameters: Note: "Radiation" can be abbreviated to "R" when defining zones.
+		x,y,z radius Radiation detailed description
+		x,y,z radius Radiation anomaly detailed description
 
-example:
+"Blackhole" A steadily increasing gradient of gravity will occur the closer you get to 
+centre.   Once you reach the centre you will become frame locked in place and unable to
+escape short of death or a jump drive.  Before that is the event horizon zone where gravity
+is too strong to escape,  at best you may be able to hold position, but you could find your
+self phasing in and out of place.  
+<Not implemented yet> You will steadily take damage while within the effects of a Blackhole.
+"Anomaly" <Not implemented yet> behaviour is there is a relatively stable ring around the 
+centre.  Although it is not possible to escape the ring under power, except with a jump 
+drive you will not take much damage, and can move around within the ring region, although 
+attempting to escape could also cause phasing issues.. also a good place to hide secrets.
+Example Parameters: Note: "Blackhole" can be abbreviated as "B" when defining zones.
+		x,y,z radius Blackhole Power Long Description
+		x,y,z radius Blackhole Anomaly Power Long Description
+
+"Whitehole" A similar gravity gradent to Blackhole, but instead of trapping you it sends
+you somewhere to a fixed location when pulled in centre.  Effectively a one way Wormhole. 
+"Anomaly" behaviour is the location is instead entirely random at a fixed distance.
+Any object in the game, including artillery shells can be pulled into these and thrown out
+elsewhere. Whiteholes with a fixed exit generate an Ejector zone automatically on the 
+other side. 
+Example Parameters:  Note: "Whitehole" can be abbreviated as "W" when defining zones.
+		x,y,z radius Whitehole Power x,y,z Long Description Fixed Exit
+		x,y,z radius Whitehole Power Eject_Radius Long Description Random Exit
+
+"Eject" This is an Ejector (Or Repulsor) this will push you away if you attempt to approach
+it.  These can be their own Navigation Hazard, or will be automatically created at the exit
+point of a Whiteholes's wormhole.
+<Not implemented>"Anomoly" behaviour - if you managed to get past the repulsion zone by raw
+speed, brute force thrust, or using a jump drive there is a dead zone inside you can move 
+around within.   Ideal for admins to hide a secret in.
+
+******
+Adding Navigation Hazards to your game:
+******
+To add these Navigation hazards to your world, open your configuration editor with /Ledit 
+and look for the [Navigation Warnings] heading.
+
+Below this heading you can enter different values and a warning message. 
+
+x,y,z radius <type> <subtype> <modifier eg range, power or x,y,z> Detailed warning message.
+
+"Radius/Range" is a figure (in metres) so 1000 is equal to 1km.  
+"Type" can be:		Nothing,
+		 	Radiation (abbreviated R), 
+			Blackhole (abbreviated B), 
+			Whitehole (abbreviated W), 	
+			Eject (abbreviated E)
+"Subtype" is either Anomaly or nothing.
+"Power" is usually a force value related to Attract or Repell Between 0 and 100.
+"x,y,z" is the coordinate location on the map you want to use.
+"Detailed warning message" is whatever description you want for the navigation warning 
+chat pager.
+
+===============================================================================
+Note: "G" (Gravity) Class navigation hazards add 100 metres to their warn
+radius to give players at least some chance of stopping in time to avoid them.
+Keep this in mind in deciding on the size of your Hazard zone.
+
+"R" (Radiation) or "Z" (Generic/General) Class navigation hazards have no such 
+margin for error, and can be any size, (even less than 10 metres)
+
+The "Class" of a Navigation Hazard is the letter code in the GPS point created
+for the hazard. Yes it is meant to have a weird looking GPS name text.
+
+This is how to read it:
+#Nav Hazard#Z3 R:0.5KM
+	#Nav Hazard# - It is a {Nav}igation {Hazard} to watch out for, clearly. 
+	Z3 - The hazard class is "Z" (generic) and this it hazard list item "3"
+	R:0.5KM - The hazard has a radius "R:" of 0.5km (500 metres)
+
+If the class code isn't G, R or Z, then it might be something new i forgot to
+mention anywhere, and added later... 
+Nanites? Minefield? Warzone? Broken spacetime? Private Property? Who knows!
+===============================================================================
+
+Formating Examples:
 [Navigation Warnings]
--341000,24422,11111 80000 danger aggressive space pirates
+-341000,24422,11111 80000 Danger! space pirates? (general zone with 80 km radius)
 
-Enter your navigation hazards location then use /lsave to record it.
+-341000,24422,11111 2000 Radiation (Radioactive zone 2km radius)
+-341000,24422,11111 2000 R Anomaly (Rad zone 2km radius less radiation in middle)
 
-You can copy and paste the x y and z fields from a GPS point to get the correct location.
+-341000,24422,11111 8000 Blackhole 10 Danger ! (Weak blackhole with 8 km radius)
+-341000,24422,11111 2000 B 100 Danger ! (Strong small blackhole with 2 km radius)
+-341000,24422,11111 8000 B Anomaly 20 Danger ! (8km Blackhole with survivable ring)
 
+-341000,24422,11111 2000 Whitehole 10 34100,2000,-1111 Whee!(Fixed wormhole exit)
+-341000,24422,11111 2000 Whitehole 100 1000000000 Yikes!(Random 1 million km exit)
 
-********************************
-Special Navigation Warning Types
-********************************
-(Currently a work in progress: Some features like radiation damage might not work yet.)
-If you want a more specialised type of Navigation Hazard you can specify the type in the
-first word of your warning message.   Currently the only special type is "Radiation" which
-plays a different sound while you are in the warning area. 
-It has two types: 
-Normal Rad Zone (All space within the radius is radioactive, weaker at the edge)
-Anomaly Rad Zone(All space within the radius is radioacive, weaker at the edge and middle)
+-341000,24422,11111 4000 Eject 40 Bye Bye! (Insistent Repulsor Ejection zone 4km)
+-341000,2422,1111 5000 Eject Anomaly 10 Bye? (5km Weak Repulse zone with deadzone)
 
-The size of the edge (or middle zone) uses the [edgebuffer] setting from /ledit, or 10%
-of the radius if it is smaller than the defined edgebuffer size.
+Once you have created (/ledit) your navigation hazard locations then use /lsave to 
+record it. Copy and paste the x y and z fields from a GPS point at your desired 
+position to get the correct location.
 
-Anomaly zones might be handy for hiding space hulks or relics or other interesting ruins
-where you want the player to take longer to gain radiation contamination to allow them
-to explore it.
+*****************************************
+Notes on Special Navigation Warning Types
+*****************************************
+(Currently a work in progress, these specifications may change without notice.)
+
+The radiation zone aims to have two types: 
+Normal Rad Zone (All space within radius is radioactive, weaker at the edge)
+Anomaly Rad Zone(All space within radius is radioacive, weaker at the edge and middle)
+
+Anomaly deadzones:
+The size of edge or deadzones (middle or ring zone) may use the [edgebuffer] setting 
+from /ledit, or 10% of the radius if it is smaller than the defined edgebuffer size.
+This may change as the feature evolves.
+
+Anomaly zones might be handy for hiding space hulks or relics or other interesting
+ruins where you want the player to take less radiation contamination or damage to 
+allow them to explore it. Or for hiding secret bases there!
 
 Normal Rad Zones might be handy for putting around Admin inserted areas with Uranium 
-available to mine or areas you want players not to spend too much time near.
+available to mine or areas you just want players not to spend too much time near.
 
 It can be used as follows:
 Designate the type using the Keyword "Radiation" or simply "R"
 Designate an Anomaly zone by the Keyword "Anomaly" (after "Radiation" or "R")
 
-example:
+Further examples:
 [Navigation Warnings]
 -341000,24422,11111 8000 Radiation Area High in Uranium ore.
 1234,34322,111 10000 R Nuked area of space.
 22323,234244, 888 20000 R Anomaly Mysterious Derelict Space Hulk
+122323,2334244, 5000 Eject Anomaly 12 My Secret base
 
 
 
@@ -407,8 +524,9 @@ Global Server Wide GPS Points
 *****************************
 Global Server Wide GPS Points are definable GPS entries that are automatically given to all 
 players.  Examples might include where all the planets are, or where important locations 
-like tradeor travel hubs/stations are located or special locations like exit points or
-mining facilities, ore locations, asteroids; whatever the server admin wants or needs.
+like trade or travel hubs/stations are located or special locations like exit points or
+mining facilities, ore locations, asteroids; whatever the server admin wants or needs all 
+the players to know.
 
 You could also use this as a sort of 'Admin Curated Unknown/Mystery Signal" for all players
 pointing at an abandoned ship or station, or some server event happening that day.
