@@ -108,7 +108,7 @@ namespace Lobby.scripts
     public class LobbyScript : MySessionComponentBase
     {
         #region default version and config
-        private const string MyVerReply = "Gateway Lobby 3.575 (+Physics B/W/E) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.576a (Visuals B/W/E) By Captain X (aka PhoenixX)";  //mod version
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         #endregion default version and config
 
@@ -509,6 +509,9 @@ namespace Lobby.scripts
                 if (spoolup || spooling) { DrawStaticStreaks2(0.5f); }  //mostly random but directional
                 if (spooling) { DrawStaticStreaks(0.6f); }  // focuses on crosshair
 
+                //Visual for blackholes or whiteholes
+                DrawHazardRings();
+
                 /*if (!initDone || string.IsNullOrEmpty(Zone)) // Retry if no LCDs detected
                 {
                     SetExits();
@@ -860,7 +863,11 @@ namespace Lobby.scripts
                     //G code means some sort of gravity well/effect, also we should give an extra 100 metres safety margin for those as they evil as hell, and score 11/10 on the nope scale
                     if (warning.Type == "Blackhole" || warning.Type == "Whitehole" || warning.Type == "Ejector") { typeCode = "G"; MyRadius += 100; }
                     if (debug)
-                    { DebugNav += $"Nav Data - R:{warning.Radius} T:{warning.Type} E:{warning.ExitRadius} M:{warning.Message}\r\n"; }
+                    {
+                        // gives us a summarised copy of all the Navigation Hazards, and forces the GPS check/create for each without filters
+                        DebugNav += $"Nav Data - R:{warning.Radius} T:{warning.Type} E:{warning.ExitRadius} M:{warning.Message}\r\n";
+                        GPS(warning.X, warning.Y, warning.Z, $"Nav Hazard#{typeCode}{haznumber} R:{MyRadius / 1000}KM", warning.Message, true);
+                    }
                     //In these checks we can set a global flag for gravity type events, or simply do nothing and let the tick loop 
                     //server side handle applying damage/drift/teleport events. Server side is preferable as it load balances the work
                     //better and will immediately apply the effect, before waiting for the user to get the next hazard warning round.
@@ -951,7 +958,7 @@ namespace Lobby.scripts
                         EffectPlayer("Radiation", damage);
 
                     }
-                } 
+                }
                 if (debug) MyAPIGateway.Utilities.ShowMissionScreen("Navigation List", "Debug", "", DebugNav, null, "Close");
 
 
@@ -1648,7 +1655,7 @@ namespace Lobby.scripts
         ///     jump drive visuals etc
         /// </summary>
         #region visual effects
-
+        // radiation and intersellar boundaries
         private void DrawStaticStreaks2(float intensity = 1.0f)
         {
             var player = MyAPIGateway.Session.Player;
@@ -1798,6 +1805,262 @@ namespace Lobby.scripts
             MyTransparentGeometry.AddLineBillboard(material, lineColor, v4, v1, 0, thickness, BlendTypeEnum.Standard);
         }
 
+        //gravity wells
+        private void DrawHazardRings()
+        {
+            var player = MyAPIGateway.Session.Player;
+            if (player?.Character == null || navigationWarnings == null)
+                return;
+
+            MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
+            Vector3D playerPos = player.Character.GetPosition();
+            int tick = MyAPIGateway.Session.GameplayFrameCounter;
+
+            foreach (var warning in navigationWarnings)
+            {
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole")
+                    continue;
+
+
+
+                Vector3D realCenter = new Vector3D(warning.X, warning.Y, warning.Z);
+                double dist = Vector3D.Distance(playerPos, realCenter);
+                if (dist > 150000) continue;
+
+                float outerReal = (float)warning.Radius;
+                float innerReal = warning.Type == "Whitehole" ? outerReal * 0.08f : outerReal * 0.06f;
+                Vector3D toHazard = Vector3D.Normalize(realCenter - playerPos);
+
+
+                // ── CLOSE range (real spiral) ──
+                if (dist <= outerReal * 1.12f)
+                {
+                    // 70 % of original size feels perfect for 200–1500 m zones
+                    float realOuter = outerReal * 0.70f;
+                    float realInner = realOuter * (innerReal / outerReal);
+                    DrawSpiral(realCenter, realOuter, realInner, tick, material, toHazard, isFake: false);
+                    if (warning.Type == "Blackhole")
+                        DrawBlackHoleJet(realCenter, outerReal * 0.70f, material);
+                }
+
+                // ── FAR range (fake spiral) ──
+                else
+                {
+                    float angularRadius = (float)(outerReal / dist);
+                    float drawDist = 80f;
+                    float fakeOuter = angularRadius * drawDist * 0.5f;   // ← HALF the previous fake size
+                    float fakeInner = fakeOuter * (innerReal / outerReal);
+
+                    Vector3D fakeCenter = playerPos + toHazard * drawDist;
+             
+                    if (warning.Type == "Blackhole")
+                        DrawBlackHoleJet(fakeCenter, fakeOuter, material);
+
+                    DrawSpiral(fakeCenter, fakeOuter, fakeInner, tick, material, toHazard, isFake: true);
+                }
+            }
+        }
+
+        // ────── UPDATED DrawSpiral — now with permanent 33° cinematic tilt ──────
+        private void DrawSpiral(Vector3D center, float outer, float inner, int tick,
+                                MyStringId material, Vector3D playerToCenter, bool isFake)
+        {
+            float thickness = isFake ? 1.65f : 10.25f;   // ← your perfect values
+
+            Vector4 color = inner < outer * 0.07f
+                ? new Vector4(0.95f, 0.25f, 1.1f, 0.94f)
+                : new Vector4(1.0f, 0.88f, 0.4f, 0.94f);
+
+            const int arms = 4;
+            const int segments = 72;
+            float spin = tick * 0.007f;
+
+            // Permanent ~33° tilt (looks amazing from every angle)
+            Vector3D fakeNormal = Vector3D.Normalize(playerToCenter + new Vector3D(0, 0, 0.55f));
+
+            Vector3D up = Vector3D.CalculatePerpendicularVector(fakeNormal);
+            Vector3D right = Vector3D.Cross(fakeNormal, up);
+
+            for (int a = 0; a < arms; a++)
+            {
+                float armAngle = a * MathHelper.TwoPi / arms + spin;
+                for (int i = 0; i < segments; i++)
+                {
+                    float t1 = i / (float)segments;
+                    float t2 = (i + 1) / (float)segments;
+
+                    float r1 = outer - (outer - inner) * t1;
+                    float r2 = outer - (outer - inner) * t2;
+
+                    float angle1 = armAngle + t1 * MathHelper.TwoPi * 1.35f;
+                    float angle2 = armAngle + t2 * MathHelper.TwoPi * 1.35f;
+
+                    Vector3D p1 = center + (right * Math.Cos(angle1) + up * Math.Sin(angle1)) * r1;
+                    Vector3D p2 = center + (right * Math.Cos(angle2) + up * Math.Sin(angle2)) * r2;
+
+                    Vector3D dir = p2 - p1;
+
+                    MyTransparentGeometry.AddLineBillboard(
+                        material, color, p1, dir, (float)dir.Length(), thickness, BlendTypeEnum.PostPP);
+                }
+            }
+        }
+
+        private void DrawBlackHoleJet(Vector3D center, float radius, MyStringId material)
+        {
+            // Persistent per-blackhole random seed so it doesn't jitter every frame
+            // Uses the centre coordinates as seed → same blackhole always has same "personality"
+            int seed = (int)(center.X + center.Y + center.Z);
+            var rnd = new Random(seed);
+
+            // Random tilt: ±2.5° in any direction (feels alive but stable)
+            double tiltX = (rnd.NextDouble() - 0.5) * 0.087;   // ±5° max
+            double tiltY = (rnd.NextDouble() - 0.5) * 0.087;
+            Vector3D worldUp = new Vector3D(0, 0, 1);
+            Vector3D jetAxis = Vector3D.Normalize(worldUp + new Vector3D(tiltX, tiltY, 0));
+
+            // Random length variation: 85–115% of base length
+            float lengthVar = 0.85f + (float)rnd.NextDouble() * 0.30f;  // 0.85 – 1.15
+            float jetLength = radius * 1.6f * lengthVar;
+
+            float coreThick = 0.24f + radius * 0.0007f;
+            float glowThick = coreThick * 3.0f;
+
+            Vector4 core = new Vector4(0.75f, 0.95f, 1.45f, 0.98f);
+            Vector4 glow = new Vector4(0.6f, 0.85f, 1.55f, 0.55f);
+
+            Vector3D top = center + jetAxis * jetLength * 0.5f;
+            Vector3D bottom = center - jetAxis * jetLength * 0.5f;
+
+            // Core beam
+            MyTransparentGeometry.AddLineBillboard(
+                material, core, top, bottom - top,
+                (float)(bottom - top).Length(), coreThick, BlendTypeEnum.PostPP);
+
+            // Glow rings
+            Vector3D right = Vector3D.CalculatePerpendicularVector(jetAxis);
+            Vector3D fwd = Vector3D.Cross(jetAxis, right);
+
+            for (int i = 0; i < 9; i++)
+            {
+                Vector3D pos = Vector3D.Lerp(top, bottom, (i + 0.5f) / 9f);
+                for (int s = 0; s < 20; s++)
+                {
+                    double a1 = s / 20.0 * Math.PI * 2;
+                    double a2 = (s + 1) / 20.0 * Math.PI * 2;
+
+                    Vector3D p1 = pos + (right * Math.Cos(a1) + fwd * Math.Sin(a1)) * glowThick;
+                    Vector3D p2 = pos + (right * Math.Cos(a2) + fwd * Math.Sin(a2)) * glowThick;
+
+                    MyTransparentGeometry.AddLineBillboard(
+                        material, glow, p1, p2 - p1,
+                        (float)(p2 - p1).Length(), glowThick * 0.6f, BlendTypeEnum.PostPP);
+                }
+            }
+        }
+
+        //sample render types
+        private void DrawSimplePlaceholderRing2(Vector3D center, float outer, float inner, Vector3D faceDirection, MyStringId material)
+        {
+            // Simple thick glowing ring with correct hole in the middle
+            const int segments = 48;
+            float thickness = 0.4f;
+            Vector4 color = inner < outer * 0.07f
+                ? new Vector4(0.9f, 0.3f, 1.0f, 0.9f)   // purple for blackhole
+                : new Vector4(1.0f, 0.8f, 0.3f, 0.9f);   // gold for whitehole
+
+            for (int i = 0; i < segments; i++)
+            {
+                double a1 = i / (double)segments * Math.PI * 2.0;
+                double a2 = (i + 1) / (double)segments * Math.PI * 2.0;
+
+                Vector3D p1o = center + Vector3D.CalculatePerpendicularVector(faceDirection) * outer * Math.Cos(a1)
+                                      + Vector3D.Cross(faceDirection, Vector3D.CalculatePerpendicularVector(faceDirection)) * outer * Math.Sin(a1);
+
+                Vector3D p2o = center + Vector3D.CalculatePerpendicularVector(faceDirection) * outer * Math.Cos(a2)
+                                      + Vector3D.Cross(faceDirection, Vector3D.CalculatePerpendicularVector(faceDirection)) * outer * Math.Sin(a2);
+
+                // outer ring segment
+                MyTransparentGeometry.AddLineBillboard(material, color, p1o, p2o - p1o, (float)(p2o - p1o).Length(), thickness, BlendTypeEnum.PostPP);
+
+                // optional thin inner ring so the hole is obvious
+                Vector3D p1i = center + Vector3D.CalculatePerpendicularVector(faceDirection) * inner * Math.Cos(a1)
+                                      + Vector3D.Cross(faceDirection, Vector3D.CalculatePerpendicularVector(faceDirection)) * inner * Math.Sin(a1);
+                Vector3D p2i = center + Vector3D.CalculatePerpendicularVector(faceDirection) * inner * Math.Cos(a2)
+                                      + Vector3D.Cross(faceDirection, Vector3D.CalculatePerpendicularVector(faceDirection)) * inner * Math.Sin(a2);
+
+                MyTransparentGeometry.AddLineBillboard(material, color, p1i, p2i - p1i, (float)(p2i - p1i).Length(), thickness * 0.6f, BlendTypeEnum.PostPP);
+            }
+        }
+
+        private void DrawHazardRings2()
+        {
+            var player = MyAPIGateway.Session.Player;
+            if (player?.Character == null || navigationWarnings == null)
+                return;
+
+            MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
+            Vector3D playerPos = player.Character.GetPosition();
+            int tick = MyAPIGateway.Session.GameplayFrameCounter;
+
+            foreach (var warning in navigationWarnings)
+            {
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole")
+                    continue;
+
+                Vector3D center = new Vector3D(warning.X, warning.Y, warning.Z);
+                if (Vector3D.Distance(playerPos, center) > 130000)
+                    continue;
+
+                float R = (float)warning.Radius;                                   // outer
+                float r = warning.Type == "Whitehole" ? R * 0.08f : R * 0.05f;     // inner core
+
+                float intensity = MathHelper.Clamp((float)(Vector3D.Distance(playerPos, center) / 40000.0) * 2f, 0.4f, 1f);
+                float thickness = 0.8f + intensity * 2.2f;
+
+                Vector4 color = warning.Type == "Blackhole"
+                    ? new Vector4(0.9f, 0.2f, 1.0f, intensity)
+                    : new Vector4(1.0f, 0.8f, 0.3f, intensity);
+
+                const int arms = 4;     // 3–5 looks best
+                const int segments = 80;    // per arm
+                float rotationSpeed = 0.006f;
+                float spin = tick * rotationSpeed;
+
+                for (int arm = 0; arm < arms; arm++)
+                {
+                    float armAngle = arm * (float)Math.PI * 2f / arms + spin;
+
+                    for (int i = 0; i < segments; i++)
+                    {
+                        float t1 = i / (float)segments;
+                        float t2 = (i + 1) / (float)segments;
+
+                        // Logarithmic spiral: radius shrinks smoothly from R → r
+                        float radius1 = R - (R - r) * t1;
+                        float radius2 = R - (R - r) * t2;
+
+                        // One full turn inward
+                        float angle1 = armAngle + t1 * (float)Math.PI * 2f * 1.2f;
+                        float angle2 = armAngle + t2 * (float)Math.PI * 2f * 1.2f;
+
+                        Vector3D p1 = center + new Vector3D(Math.Cos(angle1) * radius1, Math.Sin(angle1) * radius1, 0);
+                        Vector3D p2 = center + new Vector3D(Math.Cos(angle2) * radius2, Math.Sin(angle2) * radius2, 0);
+
+                        Vector3D dir = p2 - p1;
+
+                        MyTransparentGeometry.AddLineBillboard(
+                            material,
+                            color,
+                            p1,
+                            dir,
+                            (float)dir.Length(),
+                            thickness,
+                            BlendTypeEnum.PostPP);
+                    }
+                }
+            }
+        }
 
 
         #endregion visual effects

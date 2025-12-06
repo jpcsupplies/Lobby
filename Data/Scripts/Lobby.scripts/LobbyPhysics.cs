@@ -53,7 +53,7 @@ namespace Lobby.scripts
                 // WHITEHOLE TELEPORT – only player or piloted grid
                 if (warning.Type == "Whitehole")
                 {
-                    float triggerRadius = (float)warning.Radius * 0.06f;
+                    float triggerRadius = (float)warning.Radius * 0.08f;
 
 
                     var entities = new HashSet<VRage.ModAPI.IMyEntity>();
