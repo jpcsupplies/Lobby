@@ -108,7 +108,7 @@ namespace Lobby.scripts
     public class LobbyScript : MySessionComponentBase
     {
         #region default version and config
-        private const string MyVerReply = "Gateway Lobby 3.576a (Visuals B/W/E) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.576a (Visuals B/W/E/R) By Captain X (aka PhoenixX)";  //mod version
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         #endregion default version and config
 
@@ -1805,7 +1805,9 @@ namespace Lobby.scripts
             MyTransparentGeometry.AddLineBillboard(material, lineColor, v4, v1, 0, thickness, BlendTypeEnum.Standard);
         }
 
-        //gravity wells
+
+
+        //Visuals/Borders around unsafe locations.
         private void DrawHazardRings()
         {
             var player = MyAPIGateway.Session.Player;
@@ -1818,7 +1820,9 @@ namespace Lobby.scripts
 
             foreach (var warning in navigationWarnings)
             {
-                if (warning.Type != "Blackhole" && warning.Type != "Whitehole")
+
+
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector" && warning.Type !="Radiation")
                     continue;
 
 
@@ -1831,6 +1835,54 @@ namespace Lobby.scripts
                 float innerReal = warning.Type == "Whitehole" ? outerReal * 0.08f : outerReal * 0.06f;
                 Vector3D toHazard = Vector3D.Normalize(realCenter - playerPos);
 
+                if (warning.Type == "Radiation")
+                {
+                    //radiation zones visible only nearby
+                    if ((dist - warning.Radius) > 1000) continue;
+
+                    // Close range
+                    if (dist <= warning.Radius * 1.2f)
+                    {
+                        //no point drawing warning if you are already in it and can see Haz GPS
+                        //Ideally tho should have a radioactive haze at this point.
+                        //Maybe using the weather effects or cover the players POV with a big green pulsing
+                        //Transparent line?
+                        //DrawRadiationCollar(realCenter, (float)warning.Radius, toHazard, material);
+                        continue;
+                    }
+                    // Far range — tiny fake version
+                    else
+                    {
+                        float angular = (float)(warning.Radius / dist);
+                        float drawDist = 80f;
+                        float fakeRad = angular * drawDist * 0.8f;
+                        Vector3D fakeCenter = playerPos + toHazard * drawDist;
+
+                        DrawRadiationCollar(fakeCenter, fakeRad, toHazard, material);
+                        continue;
+                    }
+                }
+                else if (warning.Type == "Ejector")
+                {
+                    // Close range — draw at real position
+                    if (dist <= warning.Radius * 1.3f)
+                    {
+
+                        DrawEjectorRing(realCenter, (float)warning.Radius * 0.05f, toHazard, material);
+                        continue;
+                    }
+                    // Far range — forced-perspective version
+                    else
+                    {
+                        float angular = (float)(warning.Radius / dist);
+                        float drawDist = 80f;
+                        float fakeRadius = angular * drawDist * 0.045f;   // slightly smaller than black/white holes
+                        Vector3D fakeCenter = playerPos + toHazard * drawDist;
+
+                        DrawEjectorRing(fakeCenter, fakeRadius, toHazard, material);
+                        continue;
+                    }
+                }
 
                 // ── CLOSE range (real spiral) ──
                 if (dist <= outerReal * 1.12f)
@@ -1852,7 +1904,7 @@ namespace Lobby.scripts
                     float fakeInner = fakeOuter * (innerReal / outerReal);
 
                     Vector3D fakeCenter = playerPos + toHazard * drawDist;
-             
+
                     if (warning.Type == "Blackhole")
                         DrawBlackHoleJet(fakeCenter, fakeOuter, material);
 
@@ -1861,7 +1913,37 @@ namespace Lobby.scripts
             }
         }
 
-        // ────── UPDATED DrawSpiral — now with permanent 33° cinematic tilt ──────
+        //radiation border
+        private void DrawRadiationCollar(Vector3D center, float radius, Vector3D faceDirection, MyStringId material)
+        {
+            const int segments = 36;
+            const float thickness = 0.3f;
+
+            // Classic toxic green that screams "RADIATION"
+            Vector4 color = new Vector4(0.4f, 1.0f, 0.2f, 0.92f);
+
+            // Gentle pulsing so it feels hazardous
+            float pulse = 0.75f + (float)Math.Sin(MyAPIGateway.Session.GameplayFrameCounter * 0.07) * 0.25f;
+
+            Vector3D right = Vector3D.CalculatePerpendicularVector(faceDirection);
+            Vector3D up = Vector3D.Cross(faceDirection, right);
+
+            for (int i = 0; i < segments; i++)
+            {
+                double a1 = i / (double)segments * Math.PI * 2.0;
+                double a2 = (i + 1) / (double)segments * Math.PI * 2.0;
+
+                Vector3D p1 = center + (right * Math.Cos(a1) + up * Math.Sin(a1)) * radius;
+                Vector3D p2 = center + (right * Math.Cos(a2) + up * Math.Sin(a2)) * radius;
+
+                MyTransparentGeometry.AddLineBillboard(
+                    material, color * pulse, p1, p2 - p1, (float)(p2 - p1).Length(),
+                    thickness, BlendTypeEnum.PostPP);
+            }
+        }
+
+        //gravity wells
+        // ────── DrawSpiral —  with permanent 33° cinematic tilt ──────
         private void DrawSpiral(Vector3D center, float outer, float inner, int tick,
                                 MyStringId material, Vector3D playerToCenter, bool isFake)
         {
@@ -1956,6 +2038,42 @@ namespace Lobby.scripts
                         material, glow, p1, p2 - p1,
                         (float)(p2 - p1).Length(), glowThick * 0.6f, BlendTypeEnum.PostPP);
                 }
+            }
+        }
+
+        private void DrawEjectorRing(Vector3D center, float radius, Vector3D faceDirection, MyStringId material)
+        {
+            const int segments = 40;
+            float thickness = 0.55f;
+
+            // Signature Ejector colour: bright cyan with a hint of green — screams "EXIT HERE"
+            Vector4 outerColor = new Vector4(0.3f, 1.0f, 0.9f, 0.92f);   // cyan
+            Vector4 innerColor = new Vector4(0.1f, 0.8f, 1.0f, 0.85f);   // slightly deeper
+
+            // Pulsing brightness so it breathes
+            float pulse = (float)(Math.Sin(MyAPIGateway.Session.GameplayFrameCounter * 0.05) * 0.15 + 0.85);
+
+            for (int i = 0; i < segments; i++)
+            {
+                double a1 = i / (double)segments * Math.PI * 2.0;
+                double a2 = (i + 1) / (double)segments * Math.PI * 2.0;
+
+                // Build orthonormal basis so ring always faces player perfectly
+                Vector3D right = Vector3D.CalculatePerpendicularVector(faceDirection);
+                Vector3D up = Vector3D.Cross(faceDirection, right);
+
+                // Outer ring
+                Vector3D p1o = center + (right * Math.Cos(a1) + up * Math.Sin(a1)) * radius;
+                Vector3D p2o = center + (right * Math.Cos(a2) + up * Math.Sin(a2)) * radius;
+                MyTransparentGeometry.AddLineBillboard(material, outerColor * pulse, p1o, p2o - p1o,
+                    (float)(p2o - p1o).Length(), thickness * 1.1f, BlendTypeEnum.PostPP);
+
+                // Inner ring (30% of radius) — makes the classic "portal ring" look
+                float innerR = radius * 0.30f;
+                Vector3D p1i = center + (right * Math.Cos(a1) + up * Math.Sin(a1)) * innerR;
+                Vector3D p2i = center + (right * Math.Cos(a2) + up * Math.Sin(a2)) * innerR;
+                MyTransparentGeometry.AddLineBillboard(material, innerColor * pulse, p1i, p2i - p1i,
+                    (float)(p2i - p1i).Length(), thickness * 0.7f, BlendTypeEnum.PostPP);
             }
         }
 
