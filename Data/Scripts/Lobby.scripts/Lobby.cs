@@ -1854,7 +1854,7 @@ namespace Lobby.scripts
                     else
                     {
                         float angular = (float)(warning.Radius / dist);
-                        float drawDist = 80f;
+                        float drawDist = 350f;
                         float fakeRad = angular * drawDist * 0.8f;
                         Vector3D fakeCenter = playerPos + toHazard * drawDist;
 
@@ -1875,7 +1875,7 @@ namespace Lobby.scripts
                     else
                     {
                         float angular = (float)(warning.Radius / dist);
-                        float drawDist = 80f;
+                        float drawDist = 350f;
                         float fakeRadius = angular * drawDist * 0.045f;   // slightly smaller than black/white holes
                         Vector3D fakeCenter = playerPos + toHazard * drawDist;
 
@@ -1899,7 +1899,7 @@ namespace Lobby.scripts
                 else
                 {
                     float angularRadius = (float)(outerReal / dist);
-                    float drawDist = 80f;
+                    float drawDist = 350f;
                     float fakeOuter = angularRadius * drawDist * 0.5f;   // ← HALF the previous fake size
                     float fakeInner = fakeOuter * (innerReal / outerReal);
 
