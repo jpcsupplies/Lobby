@@ -1753,6 +1753,7 @@ namespace Lobby.scripts
             if (player == null || player.Character == null)
                 return;
 
+
             var position = player.Character.GetPosition();
             double range = CubeSize / 2; // Half cube size from center
             double dominantAxis = Math.Max(Math.Max(Math.Abs(position.X), Math.Abs(position.Y)), Math.Abs(position.Z));
@@ -1811,7 +1812,7 @@ namespace Lobby.scripts
         private void DrawHazardRings()
         {
             var player = MyAPIGateway.Session.Player;
-            if (player?.Character == null || navigationWarnings == null)
+            if (player == null || player?.Character == null || navigationWarnings == null)
                 return;
 
             MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
@@ -1916,6 +1917,11 @@ namespace Lobby.scripts
         //radiation border
         private void DrawRadiationCollar(Vector3D center, float radius, Vector3D faceDirection, MyStringId material)
         {
+
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player?.Character == null || navigationWarnings == null)
+                return;
+
             const int segments = 36;
             const float thickness = 0.3f;
 
@@ -1947,6 +1953,9 @@ namespace Lobby.scripts
         private void DrawSpiral(Vector3D center, float outer, float inner, int tick,
                                 MyStringId material, Vector3D playerToCenter, bool isFake)
         {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player?.Character == null || navigationWarnings == null)
+                return;
             float thickness = isFake ? 1.65f : 10.25f;   // ← your perfect values
 
             Vector4 color = inner < outer * 0.07f
@@ -1990,6 +1999,9 @@ namespace Lobby.scripts
 
         private void DrawBlackHoleJet(Vector3D center, float radius, MyStringId material)
         {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player?.Character == null || navigationWarnings == null)
+                return;
             // Persistent per-blackhole random seed so it doesn't jitter every frame
             // Uses the centre coordinates as seed → same blackhole always has same "personality"
             int seed = (int)(center.X + center.Y + center.Z);
@@ -2043,9 +2055,12 @@ namespace Lobby.scripts
 
         private void DrawEjectorRing(Vector3D center, float radius, Vector3D faceDirection, MyStringId material)
         {
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player?.Character == null || navigationWarnings == null)
+                return;
+
             const int segments = 40;
             float thickness = 0.55f;
-
             // Signature Ejector colour: bright cyan with a hint of green — screams "EXIT HERE"
             Vector4 outerColor = new Vector4(0.3f, 1.0f, 0.9f, 0.92f);   // cyan
             Vector4 innerColor = new Vector4(0.1f, 0.8f, 1.0f, 0.85f);   // slightly deeper
@@ -2080,6 +2095,10 @@ namespace Lobby.scripts
         //sample render types
         private void DrawSimplePlaceholderRing2(Vector3D center, float outer, float inner, Vector3D faceDirection, MyStringId material)
         {
+
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player?.Character == null || navigationWarnings == null)
+                return;
             // Simple thick glowing ring with correct hole in the middle
             const int segments = 48;
             float thickness = 0.4f;
@@ -2114,7 +2133,7 @@ namespace Lobby.scripts
         private void DrawHazardRings2()
         {
             var player = MyAPIGateway.Session.Player;
-            if (player?.Character == null || navigationWarnings == null)
+            if (player == null || player?.Character == null || navigationWarnings == null)
                 return;
 
             MyStringId material = MyStringId.GetOrCompute("WeaponLaser");
