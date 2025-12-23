@@ -28,7 +28,7 @@ namespace Lobby.scripts
 
         
         /// <summary>
-        ///     Server Suide Things that need to override/control Physics
+        ///     Server Side Things that need to override/control Physics
         /// </summary>
         public override void UpdateBeforeSimulation()
         {

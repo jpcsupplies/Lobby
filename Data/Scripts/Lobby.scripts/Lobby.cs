@@ -480,6 +480,8 @@ namespace Lobby.scripts
             // a rough sounding effect for when players are teleported, 
             // some general sound for simply being shoved out by Ejector Zones.
             //They would run only client side and possibly loop
+ 
+
 
             // Only init once per connection.
             if (!initDone && MyAPIGateway.Session != null && MyAPIGateway.Session.Player != null)
@@ -497,6 +499,14 @@ namespace Lobby.scripts
             // offline it might somehow blunder in here still.
             if (!AmIaDedicated())
             {
+                //kill switch if player is not spawned in yet
+                var player = MyAPIGateway.Session.Player;
+                if (player == null || player.Character == null || player.Character.IsDead)
+                {
+                    base.UpdateAfterSimulation();
+                    return;
+                }
+
                 //Visual effects
                 // Draws lines indication boundry
                 // Not working DrawBoundaryLines();

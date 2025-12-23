@@ -35,6 +35,11 @@ namespace Lobby.scripts
             if (LobbyServer.ServerNavigationWarnings == null || LobbyServer.ServerNavigationWarnings.Count == 0)
                 return;
 
+            //kill switch for not spawned player  (not applicable this only runs server side)
+            //var player = MyAPIGateway.Session.Player;
+            //if (player == null || player.Character == null || player.Character.IsDead)
+            //   return;
+
             foreach (var warning in LobbyServer.ServerNavigationWarnings)
             {
                 // Only gravity zones
