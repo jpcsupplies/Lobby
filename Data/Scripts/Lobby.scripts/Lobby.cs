@@ -116,6 +116,7 @@ namespace Lobby.scripts
         int counter = 0;  //Keeps track of how long since the last full run of main processing loop
         bool initDone = false; //Has the script finished loading its business
         bool seenPopup = false; //have we already displayed a popup in this zone?
+        bool killswitch = false; // player is dead HALT ALL PROCESSES for 15 seconds.
         public long lastStationId = 0; // Tracks the last station LCD that triggered a popup
         bool noZone = true; //no zone in sight?
         //private bool handlerRegistered = false;
@@ -494,19 +495,30 @@ namespace Lobby.scripts
                 return;
             }
 
+            //Client side kill switch if player is not spawned in yet halt all execution for 15 seconds
+            //after they respawn.
+            var player = MyAPIGateway.Session.Player;
+            if (player == null || player.Character == null || player.Character.IsDead)
+            {
+                killswitch = true;                
+                base.UpdateAfterSimulation();
+                return;
+            } else if (killswitch)
+            {
+                if (counter >= 1500)
+                {
+                    counter = 0;
+                    killswitch = false;
+                }
+                counter++;
+            }
+            
+
             // Once again, lets be sure not to run this bit on a server.. cause that would be dumb.
             // Mostly redundant due to earlier AmIaDedicated() check and return above but in some edge cases 
             // offline it might somehow blunder in here still.
-            if (!AmIaDedicated())
+            if (!AmIaDedicated() && !killswitch)
             {
-                //kill switch if player is not spawned in yet
-                var player = MyAPIGateway.Session.Player;
-                if (player == null || player.Character == null || player.Character.IsDead)
-                {
-                    base.UpdateAfterSimulation();
-                    return;
-                }
-
                 //Visual effects
                 // Draws lines indication boundry
                 // Not working DrawBoundaryLines();
