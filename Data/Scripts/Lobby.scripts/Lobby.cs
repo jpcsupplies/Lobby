@@ -108,8 +108,8 @@ namespace Lobby.scripts
     public class LobbyScript : MySessionComponentBase
     {
         #region default version and config
-        private const string MyVerReply = "Gateway Lobby 3.576a (Visuals B/W/E/R) By Captain X (aka PhoenixX)";  //mod version
-        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
+        private const string MyVerReply = "Gateway Lobby 3.577a (Visuals B/W/E/R) By Captain X (aka PhoenixX)";  //mod version
+        public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[ExitLCDRange] 9\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         #endregion default version and config
 
         #region global/local instance variables
@@ -146,6 +146,7 @@ namespace Lobby.scripts
         public bool AllowStationClaimLCD = true; // Placeholder for station claim LCDs
         public bool AllowStationFactionLCD = true; // Placeholder for station faction LCDs
         public bool AllowStationTollLCD = true; // Placeholder for station toll LCDs
+        public double ExitLCDRange = 9;
         //public bool NoInterstellar = true;
 
         //Targets
@@ -481,7 +482,7 @@ namespace Lobby.scripts
             // a rough sounding effect for when players are teleported, 
             // some general sound for simply being shoved out by Ejector Zones.
             //They would run only client side and possibly loop
- 
+
 
 
             // Only init once per connection.
@@ -495,15 +496,16 @@ namespace Lobby.scripts
                 return;
             }
 
-            //Client side kill switch if player is not spawned in yet halt all execution for 15 seconds
+            //Client side kill switch if player is not spawned in yet halt all execution for a few seconds
             //after they respawn.
             var player = MyAPIGateway.Session.Player;
             if (player == null || player.Character == null || player.Character.IsDead)
             {
-                killswitch = true;                
+                killswitch = true;
                 base.UpdateAfterSimulation();
                 return;
-            } else if (killswitch)
+            }
+            else if (killswitch)
             {
                 if (counter >= 1500)
                 {
@@ -512,7 +514,7 @@ namespace Lobby.scripts
                 }
                 counter++;
             }
-            
+
 
             // Once again, lets be sure not to run this bit on a server.. cause that would be dumb.
             // Mostly redundant due to earlier AmIaDedicated() check and return above but in some edge cases 
@@ -745,7 +747,7 @@ namespace Lobby.scripts
                 Vector3D position = MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity.GetPosition();
                 var updatelist = new HashSet<IMyTextPanel>(); //list of lcds
                 string[] LCDTags = new string[] { "[destination]", "(destination)" };
-                var sphere = new BoundingSphereD(position, 9); //destination lcds
+                var sphere = new BoundingSphereD(position, ExitLCDRange); //destination lcds
                 var LCDlist = MyAPIGateway.Entities.GetEntitiesInSphere(ref sphere);
 
                 //Scheduled for cleanup
@@ -1845,7 +1847,7 @@ namespace Lobby.scripts
             {
 
 
-                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector" && warning.Type !="Radiation")
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector" && warning.Type != "Radiation")
                     continue;
 
 
@@ -3146,6 +3148,7 @@ namespace Lobby.scripts
             summary.AppendLine($"[AllowStationClaimLCD] {AllowStationClaimLCD} (Placeholder)");
             summary.AppendLine($"[AllowStationFactionLCD] {AllowStationFactionLCD} (Placeholder)");
             summary.AppendLine($"[AllowStationTollLCD] {AllowStationTollLCD} (Placeholder)");
+            summary.AppendLine($"[ExitLCDRange] {ExitLCDRange}");
 
             // Interstellar departure points
             summary.AppendLine("\nInterstellar Departure Points:");
@@ -3541,6 +3544,7 @@ namespace Lobby.scripts
                     }
                 }
 
+                // MyAPIGateway.Utilities.ShowMessage("LobbyDebug", $"Checking ({trimmed}) now");
                 //all other settings logic
                 if (trimmed.StartsWith("[GE]") || trimmed.StartsWith("[GW]") || trimmed.StartsWith("[GN]") ||
                     trimmed.StartsWith("[GS]") || trimmed.StartsWith("[GU]") || trimmed.StartsWith("[GD]"))
@@ -3609,6 +3613,25 @@ namespace Lobby.scripts
                             EdgeBuffer = parsedBuffer;
                         }
                     }
+                }
+                else if (trimmed.StartsWith("[ExitLCDRange]"))
+                {
+
+                    var parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    double parsedExit = ExitLCDRange; // Initialize with class-level default
+                    if (parts.Length > 1 && double.TryParse(parts[1], out parsedExit))
+                    {
+                        //how far to scan from departure LCDs for players before offering the exit point
+                        if (parsedExit < 0 || parsedExit > 20)
+                        {
+                            ExitLCDRange = 9; // Default if the size is too big or small
+                        }
+                        else
+                        {
+                            ExitLCDRange = parsedExit;
+                        }
+                    }
+                    //MyAPIGateway.Utilities.ShowMessage("LobbyDebug", $"I got ({ExitLCDRange}) for the ExitLCDRange setting and ({parsedExit}) to check.");
                 }
                 else if (trimmed.StartsWith("[NetworkName]"))
                 {

@@ -25,6 +25,7 @@ Contents in this document:
 'Other Configuration options'
 	'AllowDestinationLCD'
 		'AllowAdminDestinationLCD'
+	'[ExitLCDRange]'
 	'AllowStationPopupLCD'
 		'AllowAdminStationPopupLCD'
 	'NetworkName'
@@ -227,6 +228,9 @@ address and port and a description - for example
 This will allow players within 9 metres of that LCD to /depart and travel to that server. The chat 
 displays a notification that this is a departure point every few seconds or so until they /depart
 or move more than 9 metres from the LCD.
+
+Note: You can change the scan range default from 9 to any number from 1 to 20 by setting a number
+under the setting [ExitLCDRange] in the /ledit /lsave config file. Example [ExitLCDRange] 5
 
 If you want to have an easier way to enter a description you can enable the "text" content option
 and use the LCD screen text editor instead to write in your destination server description.
@@ -557,7 +561,7 @@ Other Configuration options
 ============================
 The /Ledit command has additional options a server admin can change although many
 are still placeholders and will be ignored, and may or may not be particularly 
-reliable:
+reliable, and may be case sensitive:
 
 [AllowDestinationLCD] true / false
 Should Destination LCDs be allowed to work.  Default true.
@@ -569,6 +573,12 @@ Default true.
 If you set AllowDestinationLCD to false but set this option to true then if a server
 admin creates a [destination] LCD the destination will still be offered to players
 as long as the LCD is owned/created by a server Admin user.
+
+[ExitLCDRange] 1-20
+Default 9.
+Sets how far the [Destination] LCDs scan for a player before offering an exit point 
+to /depart into.
+If ommited, will default 9, if larger than 20 or below 0 will also default to 9
 
 [AllowStationPopupLCD] true /false
 Should station/ship popup greeting LCDs be allowed? Default true.
