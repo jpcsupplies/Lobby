@@ -867,6 +867,16 @@ namespace Lobby.scripts
                     // }
                 }
 
+                // POI GPS points — added globally if active (Power = 1.0), like globalGPS
+                foreach (var warning in navigationWarnings)
+                {
+                    if (warning.Type == "POI" && warning.Power >= 1.0) //create it is 1.0 or 2.0 etc non zero
+                    {
+                        //send the POI to GPS() to create                        
+                        GPS(warning.X, warning.Y, warning.Z, "[POI] " + warning.Message, "", true, "Y"); // "Y" = add (match your GPS helper flag)
+                    }
+                }
+
                 //[Navigation Warnings] logic
                 //If it is first time pop up warning; set seen flag
                 //If it is second time only show console message
@@ -879,6 +889,7 @@ namespace Lobby.scripts
                 string DebugNav = "";
                 foreach (var warning in navigationWarnings)
                 {
+                    if (warning.Type == "POI") continue; //we already processed this type in the GPS block above so skip this entry
                     haznumber++;
                     bool Radioactive = false;
                     var MyRadius = warning.Radius; //Used so we can add a fixed safety 
@@ -1504,6 +1515,10 @@ namespace Lobby.scripts
                     return Color.Orange;
                 case "orangered":
                     return Color.OrangeRed;
+                case "y":
+                    return Color.OrangeRed;
+                case "n":
+                    return Color.OrangeRed;
                 case "orchid":
                     return Color.Orchid;
                 case "palegoldenrod":
@@ -1833,6 +1848,7 @@ namespace Lobby.scripts
 
 
         //Visuals/Borders around unsafe locations.
+        //Also repurposed for [POI] removal conditions too.
         private void DrawHazardRings()
         {
             var player = MyAPIGateway.Session.Player;
@@ -1847,7 +1863,7 @@ namespace Lobby.scripts
             {
 
 
-                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector" && warning.Type != "Radiation")
+                if (warning.Type != "Blackhole" && warning.Type != "Whitehole" && warning.Type != "Ejector" && warning.Type != "Radiation" && warning.Type != "POI")
                     continue;
 
 
@@ -1908,6 +1924,46 @@ namespace Lobby.scripts
                         continue;
                     }
                 }
+                else if (warning.Type == "POI")
+                {
+                    //Skip if already removed
+                    if (warning.Power == 0.0) continue;
+
+                    // Close range — trigger removal here if with range
+                    if (dist <= warning.Radius)
+                    {
+                        string gpsName = "[POI] " + warning.Message;
+                        //send the POI to GPS() to remove
+                        GPS(warning.X, warning.Y, warning.Z, gpsName, "", false, "N");
+
+                        //here we need to check if it is a single use or regenerate on reconnect type
+                        if (warning.Power > 1.0)
+                        {
+                            //if it is above (but not) 1.0 leave it alone it probably needs to be recreated
+                        }
+                        else
+                        {
+                            //if it is 1.0 or less  we need to edit the config file and change it from y to n
+                            //ie "10000,10000,10000 100 poi y test POI"  needs to become "10000,10000,10000 100 poi n test POI"
+                        }
+
+                        //regardless of if it is recreated or removed on first contact the local player needs it removed now
+                        //here we need to update the .Power setting for the current record in navigationWarnings
+                        warning.Power = 0.0;
+
+                        // Find and disable in the list (extra safe, but unnecessary)
+                        // int index = navigationWarnings.IndexOf(warning);
+                        //if (index != -1)
+                        //    navigationWarnings[index].Power = 0.0;
+
+                        MyAPIGateway.Utilities.ShowMessage("Lobby", $"Reached POI: {warning.Message}");
+                        MyAPIGateway.Utilities.ShowNotification("POI reached: " + warning.Message, 6000, MyFontEnum.Green);
+
+                        continue;
+                    }
+                }
+
+                if (warning.Type == "POI") continue; //skip drawing a ring for POI as only need GPS
 
                 // ── CLOSE range (real spiral) ──
                 if (dist <= outerReal * 1.12f)

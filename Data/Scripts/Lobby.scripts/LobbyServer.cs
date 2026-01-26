@@ -26,7 +26,7 @@ namespace Lobby.scripts
         private const ushort MESSAGE_ID = 12345;
         public static List<NavigationWarning> ServerNavigationWarnings = new List<NavigationWarning>();
 
-        
+
         /// <summary>
         ///     Server Side Things that need to override/control Physics
         /// </summary>
@@ -55,7 +55,7 @@ namespace Lobby.scripts
 
             if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(CONFIG_FILE, typeof(LobbyServer)))
             {
-                SaveConfigText(LobbyScript.DefaultConfig);                
+                SaveConfigText(LobbyScript.DefaultConfig);
             }
             BroadcastConfig();
             ParseNavigationWarningsServer(LoadConfigText());
@@ -110,7 +110,19 @@ namespace Lobby.scripts
                 {
                     string possibleType = parts[2].ToLowerInvariant();
 
-                    if (possibleType == "r" || possibleType == "radiation")
+                    if (possibleType == "poi")
+                    {
+                        //global point of interest GPS point, only shows if enabled
+                        type = "POI";
+                        if (parts[3].ToLowerInvariant() == "y") { pullpower = 1.0; } 
+                        else if (parts[3].ToLowerInvariant() == "n") { pullpower = 0.0; }
+                        else { double.TryParse(parts[3], out pullpower); }
+                        if (pullpower != 1.0) { continue; } //if is not 1.0 it isn't enabled so don't add it and skip
+                        message = string.Join(" ", parts.Skip(4)); //the gps caption
+
+                        //X,y,z Remove_Radius POI pull_power caption for GPS
+                    }
+                    else if (possibleType == "r" || possibleType == "radiation")
                     {
                         type = "Radiation";
                         message = string.Join(" ", parts.Skip(3));
