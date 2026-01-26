@@ -108,7 +108,7 @@ namespace Lobby.scripts
     public class LobbyScript : MySessionComponentBase
     {
         #region default version and config
-        private const string MyVerReply = "Gateway Lobby 3.577a (Visuals B/W/E/R) By Captain X (aka PhoenixX)";  //mod version
+        private const string MyVerReply = "Gateway Lobby 3.58a (POI Interface) By Captain X (aka PhoenixX)";  //mod version
         public const string DefaultConfig = "[cubesize] 150000000\n[edgebuffer] 2000\n[NetworkName]\n[ServerPasscode]\n[AllowDestinationLCD] true\n[AllowAdminDestinationLCD] true\n[AllowStationPopupLCD] true\n[AllowAdminStationPopup] true\n[AllowStationClaimLCD] true\n[AllowStationFactionLCD] true\n[AllowStationTollLCD] true\n[ExitLCDRange] 9\n[GE]\n[GW]\n[GN]\n[GS]\n[GU]\n[GD]\n[Navigation Warnings]\n[GPS]\n";
         #endregion default version and config
 
@@ -1937,14 +1937,14 @@ namespace Lobby.scripts
                         GPS(warning.X, warning.Y, warning.Z, gpsName, "", false, "N");
 
                         //here we need to check if it is a single use or regenerate on reconnect type
-                        if (warning.Power > 1.0)
-                        {
-                            //if it is above (but not) 1.0 leave it alone it probably needs to be recreated
-                        }
-                        else
-                        {
-                            //if it is 1.0 or less  we need to edit the config file and change it from y to n
+                        if (warning.Power == 1.0)
+                                                {
+                            //if it is 1.0 we need to edit the config file and change it from y to n
                             //ie "10000,10000,10000 100 poi y test POI"  needs to become "10000,10000,10000 100 poi n test POI"
+                            string msg = $"TriggerPOI:{warning.X}:{warning.Y}:{warning.Z}:{warning.Radius}";
+                            byte[] data = Encoding.UTF8.GetBytes(msg);
+                            MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, data);
+                           // MyAPIGateway.Utilities.ShowMessage("Lobby", "=Triggering server to disable POI=");
                         }
 
                         //regardless of if it is recreated or removed on first contact the local player needs it removed now

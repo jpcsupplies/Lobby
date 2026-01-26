@@ -15,6 +15,8 @@ using Sandbox.Game.Entities;
 using VRage.Game.Entity;
 using System.Linq; // Added for Skip
 using VRage.ModAPI; // Added for IMyEntity
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Lobby.scripts
 {
@@ -114,13 +116,14 @@ namespace Lobby.scripts
                     {
                         //global point of interest GPS point, only shows if enabled
                         type = "POI";
-                        if (parts[3].ToLowerInvariant() == "y") { pullpower = 1.0; } 
-                        else if (parts[3].ToLowerInvariant() == "n") { pullpower = 0.0; }
-                        else { double.TryParse(parts[3], out pullpower); }
-                        if (pullpower != 1.0) { continue; } //if is not 1.0 it isn't enabled so don't add it and skip
+                        if (parts[3].ToLowerInvariant() == "y") { pullpower = 1.0; } //yes enabled, removed on first contact
+                        else if (parts[3].ToLowerInvariant() == "n") { pullpower = 0.0; } //not enabled dont show
+                        else if (parts[3].ToLowerInvariant() == "r") { pullpower = 2.0; } //recreate on reconnect always
+                        else { double.TryParse(parts[3], out pullpower); } //fallback in case they used numeral
+                        if (pullpower != 1.0 && pullpower != 2.0) { continue; } //if is 0.0 or invalid it isn't enabled so don't add it and skip
                         message = string.Join(" ", parts.Skip(4)); //the gps caption
 
-                        //X,y,z Remove_Radius POI pull_power caption for GPS
+                        //X,y,z Remove_Radius POI pull_power caption for GPS (also pull_power in file is y n or r)
                     }
                     else if (possibleType == "r" || possibleType == "radiation")
                     {
@@ -328,7 +331,57 @@ namespace Lobby.scripts
                 MyAPIGateway.Multiplayer.SendMessageTo(MESSAGE_ID, Encoding.UTF8.GetBytes($"AdminStatus:{steamId}:{isAdmin}"), steamId);
             }
 
+            else if (message.StartsWith("TriggerPOI:"))
+            {
+                //MyAPIGateway.Utilities.ShowMessage("Lobby", "Got Trigger request at server");
 
+                var parts = message.Split(':');
+                if (parts.Length != 5) return;
+
+                double x = double.Parse(parts[1]);
+                double y = double.Parse(parts[2]);
+                double z = double.Parse(parts[3]);
+                double radius = double.Parse(parts[4]);
+
+                string configText = LoadConfigText();
+                var lines = configText.Split(new[] { '\n' }, StringSplitOptions.None).ToList();
+                bool found = false;
+
+                string coordStr = $"{x},{y},{z}";
+                string radiusStr = radius.ToString(CultureInfo.InvariantCulture);
+
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    string originalLine = lines[i];
+
+                    // Case-insensitive search for coords, radius, and "poi y" (any case)
+                    if (originalLine.IndexOf(coordStr, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        originalLine.IndexOf(radiusStr, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        Regex.IsMatch(originalLine, @"\bpoi\s+y\b", RegexOptions.IgnoreCase))
+                    {
+                        // Replace "poi y" (any case) with "poi n"
+                        lines[i] = Regex.Replace(originalLine, @"\bpoi\s+y\b", "poi n", RegexOptions.IgnoreCase);
+                        found = true;
+
+                        //MyAPIGateway.Utilities.ShowMessage("Lobby", $"Matched and replaced line: {originalLine.Trim()}");
+                        break;
+                    }
+                }
+
+                if (found)
+                {
+                    configText = string.Join("\n", lines);
+                    SaveConfigText(configText);
+                    ParseNavigationWarningsServer(configText);
+                    BroadcastConfig();
+
+                    //MyAPIGateway.Utilities.ShowMessage("LobbyServer", "Single-use POI permanently disabled in config.");
+                }
+                else
+                {
+                    //MyAPIGateway.Utilities.ShowMessage("Lobby", "TriggerPOI received but no matching line found.");
+                }
+            }
 
             else if (message.StartsWith("ltest reset"))
             {
