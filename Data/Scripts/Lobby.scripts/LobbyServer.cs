@@ -119,8 +119,9 @@ namespace Lobby.scripts
                         if (parts[3].ToLowerInvariant() == "y") { pullpower = 1.0; } //yes enabled, removed on first contact
                         else if (parts[3].ToLowerInvariant() == "n") { pullpower = 0.0; } //not enabled dont show
                         else if (parts[3].ToLowerInvariant() == "r") { pullpower = 2.0; } //recreate on reconnect always
+                        else if (parts[3].ToLowerInvariant() == "d") { pullpower = 3.0; } //recreate once daily
                         else { double.TryParse(parts[3], out pullpower); } //fallback in case they used numeral
-                        if (pullpower != 1.0 && pullpower != 2.0) { continue; } //if is 0.0 or invalid it isn't enabled so don't add it and skip
+                        if (pullpower != 1.0 && pullpower != 2.0 && pullpower != 3.0) { continue; } //if is 0.0 or invalid it isn't enabled so don't add it and skip
                         message = string.Join(" ", parts.Skip(4)); //the gps caption
 
                         //X,y,z Remove_Radius POI pull_power caption for GPS (also pull_power in file is y n or r)

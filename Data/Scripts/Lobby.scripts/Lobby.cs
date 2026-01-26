@@ -872,8 +872,32 @@ namespace Lobby.scripts
                 {
                     if (warning.Type == "POI" && warning.Power >= 1.0) //create it is 1.0 or 2.0 etc non zero
                     {
-                        //send the POI to GPS() to create                        
-                        GPS(warning.X, warning.Y, warning.Z, "[POI] " + warning.Message, "", true, "Y"); // "Y" = add (match your GPS helper flag)
+                        bool shouldSpawn = true;
+                        if (warning.Power == 3.0) // daily type
+                        {
+                            // Unique key per POI (rounded coords to avoid floating point drift)
+                            string poiKey = $"DailyPOI_{warning.X:F0}_{warning.Y:F0}_{warning.Z:F0}";
+
+                            // Get last collect date — default null if never collected
+                            string lastCollect = null;
+                            MyAPIGateway.Utilities.GetVariable<string>(poiKey, out lastCollect);
+
+                            // Today's date (UTC for consistency across timezones)
+                            string todayStr = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+
+                            if (lastCollect == todayStr)
+                            {
+                                shouldSpawn = false; // already collected today
+                            }
+                        }
+
+                        if (shouldSpawn)
+                        {
+                            //send the POI to GPS() to create                        
+                            GPS(warning.X, warning.Y, warning.Z, "[POI] " + warning.Message, "", true, "Y");
+                        }
+
+
                     }
                 }
 
@@ -1928,7 +1952,7 @@ namespace Lobby.scripts
                 {
                     //Skip if already removed
                     if (warning.Power == 0.0) continue;
-
+                                             
                     // Close range — trigger removal here if with range
                     if (dist <= warning.Radius)
                     {
@@ -1945,6 +1969,13 @@ namespace Lobby.scripts
                             byte[] data = Encoding.UTF8.GetBytes(msg);
                             MyAPIGateway.Multiplayer.SendMessageToServer(MESSAGE_ID, data);
                            // MyAPIGateway.Utilities.ShowMessage("Lobby", "=Triggering server to disable POI=");
+                        } else if (warning.Power == 3.0) // daily type
+                        {
+                            string poiKey = $"DailyPOI_{warning.X:F0}_{warning.Y:F0}_{warning.Z:F0}";
+                            string todayStr = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+
+                            // Record today's date as collected
+                            MyAPIGateway.Utilities.SetVariable<string>(poiKey, todayStr);
                         }
 
                         //regardless of if it is recreated or removed on first contact the local player needs it removed now
