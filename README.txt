@@ -522,6 +522,44 @@ Further examples:
 122323,2334244, 5000 Eject Anomaly 12 My Secret base
 
 
+***************************************
+POIs (self removing points of interest)
+***************************************
+This is a work in progress, as it still has a few quirks.
+These work similarly to Global Server Wide GPS Points; except they run under the
+navigation hazards system.  These are GPS points created for all users that are removed 
+when a player has visited them.  Useful for marking an abandoned ship or station for 
+example which all players see, then if a player travels there the point is removed from 
+everyone.  Or if you have a location all players should visit once a day, you can set a 
+point that only gets shown if they have not already visited it that day.   Or you could
+have a location that reappears everytime a player reconnects, but is removed for that 
+session after visiting.
+
+Think of them as a type of server admin managed "unknown signals" type behaviour.
+Might be handy if you have signals, encounters and bonus crates disabled, but want to
+manually create your own similar signals.
+
+There are these primary types:
+Single use (first come first served) points.   (type code "y")
+	The first player to visit this locations disables the POI for all players.
+Daily use (will only respawn once each day ) points. (type code "d")
+	Once visited the GPS point wont appear again until the next day.
+Recurring (will respawn each time you connect) points. (type code "r")
+	Will vanish if you visit, but will return if you reconnect.
+Disabled (not shown to anyone unless type changed) points (type code "n")
+	This is what single use points turn into once visited.
+
+Setting is formated like this:
+x,y,z trigger_range POI type GPS Description 
+
+Examples:
+[Navigation Warnings]
+-341000,24422,11111 50 POI y Free Small abandoned ship!
+1234,34322,111 100 poi d Check for bonus ore Daily Location
+22323,234244, 100 POI r Check here every time you connect
+122323,2334244, 20 poi n Disabled POI location
+
+
 
 *****************************
 Global Server Wide GPS Points
@@ -530,10 +568,11 @@ Global Server Wide GPS Points are definable GPS entries that are automatically g
 players.  Examples might include where all the planets are, or where important locations 
 like trade or travel hubs/stations are located or special locations like exit points or
 mining facilities, ore locations, asteroids; whatever the server admin wants or needs all 
-the players to know.
+the players to know the location of.
 
 You could also use this as a sort of 'Admin Curated Unknown/Mystery Signal" for all players
 pointing at an abandoned ship or station, or some server event happening that day.
+(Although POI's are likely better for this as you can disable it without removing the line)
 
 To use this feature, open your configuration editor (/ledit) 
 (or manually edit the config file in the map storage folder)  and add your Global GPS 
@@ -553,6 +592,7 @@ Examples to add all the default planet locations:
 36384:226384:5796384 gray "Titan" moonlet Titan.
 -284463,-2434463,365536 lime "Triton" moonlet Triton
 -3967232,-32232,-767232 yellow "Pertam" The sandy planet of Pertram
+
 
 -
 
